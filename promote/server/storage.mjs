@@ -7,7 +7,7 @@ export function putFile(store,path,buffer,{tenantId,mime='application/octet-stre
  valid(path);if(!store.cloud){writeFileSync(join(store.dir,'uploads',path),buffer,{mode:privateFile?0o600:0o644});return;}
  const bucket=privateFile?'tg-private':'tg-public',intent=store.requestContext.getStore()?.uploadIntent;
  store.tx(()=>{
-  const used=store.get('SELECT COALESCE(SUM(size),0) AS n FROM file_objects').n,reserved=store.get('SELECT COALESCE(SUM(reserved),0) AS n FROM upload_intents').n;
+  const used=Number(store.get('SELECT COALESCE(SUM(size),0) AS n FROM file_objects').n),reserved=Number(store.get('SELECT COALESCE(SUM(reserved),0) AS n FROM upload_intents').n);
   fail(used+reserved+(intent?0:buffer.length)<=Number(process.env.MEDIA_PROJECT_BYTES||800*1024*1024),413,'Media storage is full. Contact Techverse to free some space.');
   if(intent){const row=store.get('SELECT reserved FROM upload_intents WHERE id=?',intent);fail(row&&row.reserved>=buffer.length,413,'This processed file exceeds its upload allowance.');store.run('UPDATE upload_intents SET reserved=reserved-? WHERE id=?',buffer.length,intent);}
   store.run('INSERT INTO file_objects VALUES(?,?,?,?,?,?)',path,tenantId||null,bucket,mime,buffer.length,now());

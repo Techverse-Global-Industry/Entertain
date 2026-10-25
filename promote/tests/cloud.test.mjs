@@ -39,6 +39,8 @@ test('Native Netlify Request forwarding preserves binary output, secure session 
 test('Cloud uploads enforce authentication, single-use staging, quotas and private screenshot delivery',async()=>{
  mkdirSync('.data/tests',{recursive:true});const store=openStore(mkdtempSync(resolve('.data/tests/cloud-')));
  store.db.exec('CREATE TABLE file_objects(path TEXT PRIMARY KEY,tenant_id TEXT,bucket TEXT,mime TEXT,size INTEGER,created_at TEXT); CREATE TABLE upload_intents(id TEXT PRIMARY KEY,tenant_id TEXT,target TEXT,owner TEXT,doc TEXT,state TEXT,reserved INTEGER,expires_at TEXT,cleanup_at TEXT);');
+ // Postgres returns SUM(bigint) as a numeric string. Exercise real quota semantics.
+ const sqliteGet=store.get;store.get=(sql,...values)=>{const row=sqliteGet(sql,...values);return row&&/SUM\((size|reserved)\)/.test(sql)?{...row,n:String(row.n)}:row;};
  const objects=new Map();store.cloud=true;store.requestContext=new AsyncLocalStorage();store.rpc=(method,args)=>{
   const key=args.bucket+'/'+args.path;
   if(method==='storage.upload')return 'https://cloud-test.supabase.co/storage/v1/object/upload/sign/'+key+'?token=isolated-test';

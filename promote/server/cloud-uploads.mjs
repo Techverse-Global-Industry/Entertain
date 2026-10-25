@@ -34,8 +34,8 @@ export function cloudUploadTools(ctx){
   const output=['image','photo'].includes(kind)?input.size+24*MB:input.size,reserved=cap+output,id=uid('up_'),path=id+'.bin';
   const doc={...input,field,bucket:'tg-stage-'+kind,path,output};
   store.tx(()=>{
-   const global=store.get('SELECT COALESCE(SUM(size),0) AS n FROM file_objects').n+store.get('SELECT COALESCE(SUM(reserved),0) AS n FROM upload_intents').n;
-   const business=store.get('SELECT COALESCE(SUM(size),0) AS n FROM file_objects WHERE tenant_id=?',t.id).n+store.get('SELECT COALESCE(SUM(reserved),0) AS n FROM upload_intents WHERE tenant_id=?',t.id).n;
+   const global=Number(store.get('SELECT COALESCE(SUM(size),0) AS n FROM file_objects').n)+Number(store.get('SELECT COALESCE(SUM(reserved),0) AS n FROM upload_intents').n);
+   const business=Number(store.get('SELECT COALESCE(SUM(size),0) AS n FROM file_objects WHERE tenant_id=?',t.id).n)+Number(store.get('SELECT COALESCE(SUM(reserved),0) AS n FROM upload_intents WHERE tenant_id=?',t.id).n);
    const projectLimit=Number(process.env.MEDIA_PROJECT_BYTES||800*MB),available=field==='proof'?projectLimit:Math.max(0,projectLimit-64*MB);
    fail(global+reserved<=available,413,'Project storage is full. Contact Techverse for storage help.');
    fail(field==='proof'||business+reserved<=Number(process.env.MEDIA_BUSINESS_BYTES||200*MB),413,'This business has reached its media allowance. Contact Techverse for storage help.');
