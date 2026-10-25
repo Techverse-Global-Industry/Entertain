@@ -7,7 +7,7 @@ import {AsyncLocalStorage} from 'node:async_hooks';
 import sharp from 'sharp';
 import {openStore,seedTenant,ensureKeys,readTenant,saveTenant,hash,now,json} from '../server/core.mjs';
 import {createApp} from '../server/index.mjs';
-import {postgresSql} from '../server/postgres-sql.mjs';
+import {postgresSql,postgresSchema} from '../server/postgres-sql.mjs';
 import {configureBackend} from '../netlify/plugins/backend/configuration.mjs';
 import {startRuntime,forwardRequest} from '../netlify/functions/api.mjs';
 
@@ -15,7 +15,8 @@ test('Postgres translation preserves literals, parameter positions, aliases and 
  assert.equal(postgresSql("SELECT '?' AS label,? AS observedInstalls FROM metrics WHERE tenant_id=?"),"SELECT '?' AS \"label\",$1 AS \"observedInstalls\" FROM promote.metrics WHERE tenant_id=$2");
  assert.equal(postgresSql("INSERT OR IGNORE INTO notices VALUES(?)"),'INSERT INTO promote.notices VALUES($1) ON CONFLICT DO NOTHING');
  assert.equal(postgresSql("SELECT 'FROM users' AS sample FROM users WHERE email=?"),"SELECT 'FROM users' AS \"sample\" FROM promote.users WHERE email=$1");
- const metrics=postgresSql("SELECT COUNT(*) AS n FROM subscriptions WHERE COALESCE(json_extract(payload,'$.publicEnabled'),CASE WHEN user_id IS NULL THEN 1 ELSE 0 END)=1 AND tenant_id=?");
+ assert.match(postgresSchema('CREATE TABLE invoices(amount INTEGER NOT NULL);'),/amount BIGINT/);
+  const metrics=postgresSql("SELECT COUNT(*) AS n FROM subscriptions WHERE COALESCE(json_extract(payload,'$.publicEnabled'),CASE WHEN user_id IS NULL THEN 1 ELSE 0 END)=1 AND tenant_id=?");
  assert.match(metrics,/payload::jsonb/);assert.match(metrics,/tenant_id=\$1/);
 });
 test('Supabase Netlify configuration permits production and blocks previews sharing production data',()=>{
@@ -45,7 +46,7 @@ test('Cloud uploads enforce authentication, single-use staging, quotas and priva
   if(method==='storage.sign')return 'https://cloud-test.supabase.co/storage/v1/object/sign/'+key+'?token=private-test';
   throw Error('Unexpected storage method');
  };
- const previous=process.env.SUPABASE_URL;process.env.SUPABASE_URL='https://cloud-test.supabase.co';
+ const previousBusiness=process.env.MEDIA_BUSINESS_BYTES,previous=process.env.SUPABASE_URL;process.env.SUPABASE_URL='https://cloud-test.supabase.co';
  const runtime=createApp({store,scheduler:false}),server=runtime.app.listen(0,'127.0.0.1');await new Promise(resolve=>server.once('listening',resolve));const origin='http://127.0.0.1:'+server.address().port;
  let cookie='';
  const request=async(path,{method='GET',body,headers={},authenticated=true}={})=>{
@@ -64,6 +65,8 @@ test('Cloud uploads enforce authentication, single-use staging, quotas and priva
   const t=readTenant(store,'mchenry');t.paymentAccounts=[{currency:'NGN',holder:'Test Owner',number:'1234567890'}];saveTenant(store,t);
   store.run('INSERT INTO bookings VALUES(?,?,?,?,?,?,?,?)','b_cloud',t.id,hash('cloud-guest-token'),'awaiting_payment',now(),new Date(Date.now()+3600000).toISOString(),json({amount:100,currency:'NGN',name:'Client',payBy:new Date(Date.now()+3600000).toISOString()}),now());
   const target='/api/guest/bookings/b_cloud/proof',headers={Authorization:'Bearer cloud-guest-token'};
+  process.env.MEDIA_BUSINESS_BYTES='1'; // A full general-media allowance must not block payment proof.
+  store.setSetting('billingEnabled',true);const overdue=new Date(Date.now()-60000).toISOString();store.run('INSERT INTO invoices VALUES(?,?,?,?,?,?,?,?,?,?)','inv_cloud_hold',t.id,'unpaid',100,'NGN',overdue,overdue,'cloud-test-hold','{}',now());
   const proofIntent=await request('/api/uploads/start',{method:'POST',authenticated:false,headers,body:{...fields,target}});
   assert.equal(proofIntent.res.status,200,JSON.stringify(proofIntent.data));
   const proofDoc=JSON.parse(store.get('SELECT doc FROM upload_intents WHERE id=?',proofIntent.data.id).doc);objects.set(proofDoc.bucket+'/'+proofDoc.path,bytes);
@@ -74,7 +77,7 @@ test('Cloud uploads enforce authentication, single-use staging, quotas and priva
   assert.equal((await request('/api/proofs/'+proof.data.id+'/image',{authenticated:false})).res.status,401);
   const permitted=await request('/api/proofs/'+proof.data.id+'/image');assert.equal(permitted.res.status,302);assert.match(permitted.res.headers.get('location'),/object\/sign\/tg-private/);assert.match(permitted.res.headers.get('cache-control'),/private,no-store/);
   t.appIcon='/media/uploads/'+privateFile.path;saveTenant(store,t);assert.equal((await request('/api/brand/mchenry/icon.png',{authenticated:false})).res.status,404);
- }finally{server.closeAllConnections();await new Promise(resolve=>server.close(resolve));runtime.close();if(previous===undefined)delete process.env.SUPABASE_URL;else process.env.SUPABASE_URL=previous;}
+ }finally{server.closeAllConnections();await new Promise(resolve=>server.close(resolve));runtime.close();if(previousBusiness===undefined)delete process.env.MEDIA_BUSINESS_BYTES;else process.env.MEDIA_BUSINESS_BYTES=previousBusiness;if(previous===undefined)delete process.env.SUPABASE_URL;else process.env.SUPABASE_URL=previous;}
 });
 
 test('Direct upload keeps guest credentials off the storage host and preserves payment fields',async()=>{

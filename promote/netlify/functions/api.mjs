@@ -11,7 +11,7 @@ export async function startRuntime(store,options={}){
 }
 async function runtime(){
  if(!booting)booting=(async()=>{const store=openCloudStore();try{
-  if(!store.get("SELECT id FROM users WHERE role='admin'"))throw new Error('Import the existing business database before publishing.');
+  if(!store.get("SELECT id FROM users WHERE role='admin'"))throw Object.assign(new Error('Import the existing business database before publishing.'),{code:'CLOUD_DATABASE_NOT_IMPORTED'});
   finishMediaImport(store);return await startRuntime(store);
  }catch(error){store.db.close();throw error;}})().catch(error=>{booting=null;throw error;});
  const current=await booting;if(!current.store.db.healthy){booting=null;return runtime();}return current;

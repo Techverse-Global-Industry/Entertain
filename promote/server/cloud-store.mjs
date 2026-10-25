@@ -7,16 +7,17 @@ import {uid,json,parse,now,AppError} from './core.mjs';
 // One invocation per Netlify instance. Run async Postgres I/O in a worker to
 // preserve the established synchronous, atomic booking/payment transactions.
 export function openCloudStore(env=process.env){
- if(!env.DATABASE_URL||!(env.SUPABASE_URL||env.SUPABASE_DATABASE_URL)||!env.SUPABASE_SERVICE_ROLE_KEY)throw new Error('Missing database or Supabase Functions configuration.');
- const filename=[new URL('./cloud-worker.mjs',import.meta.url),resolve(process.cwd(),'server/cloud-worker.mjs')].find(path=>existsSync(path));
- if(!filename)throw new Error('Database worker is missing from the function bundle.');
+ if(!env.DATABASE_URL||!(env.SUPABASE_URL||env.SUPABASE_DATABASE_URL)||!env.SUPABASE_SERVICE_ROLE_KEY)throw Object.assign(new Error('Missing database or Supabase Functions configuration.'),{code:'CLOUD_CONFIG_MISSING'});
+ const task=env.LAMBDA_TASK_ROOT||process.cwd(),candidates=[new URL('./cloud-worker.mjs',import.meta.url),resolve(process.cwd(),'server/cloud-worker.mjs'),resolve(process.cwd(),'promote/server/cloud-worker.mjs'),resolve(task,'server/cloud-worker.mjs'),resolve(task,'promote/server/cloud-worker.mjs'),new URL('../../server/cloud-worker.mjs',import.meta.url)];
+ const filename=candidates.find(path=>existsSync(path));
+ if(!filename){console.error('[cloud-startup]',JSON.stringify({cwd:process.cwd(),module:import.meta.url,candidates:candidates.map(String)}));throw Object.assign(new Error('Database worker is missing from the function bundle.'),{code:'CLOUD_WORKER_MISSING'});}
  let broken=false,inTransaction=false;
- const worker=new Worker(filename,{env:{...process.env,...env}});worker.unref();worker.on('error',()=>{broken=true;});
+ const worker=new Worker(filename,{env:{...process.env,...env}});worker.unref();worker.on('error',error=>{broken=true;console.error('[cloud-worker]',error.code||error.name);});
  const response=new SharedArrayBuffer(64*1024*1024+8),control=new Int32Array(response,0,2),bytes=new Uint8Array(response,8);
  function rpc(method,args={}){
   if(broken)throw new AppError(503,'The connection needs to restart. Please try again.');
   Atomics.store(control,0,0);worker.postMessage({method,args,response});
-  if(Atomics.wait(control,0,0,25000)==='timed-out'){broken=true;void worker.terminate();throw new AppError(503,'The server took too long. Please try again.');}
+  if(Atomics.wait(control,0,0,25000)==='timed-out'){broken=true;void worker.terminate();throw Object.assign(new AppError(503,'The server took too long. Please try again.'),{code:'CLOUD_TIMEOUT'});}
   const data=JSON.parse(Buffer.from(bytes.subarray(0,Atomics.load(control,1))).toString('utf8'));
   if(data.error)throw Object.assign(new AppError(data.error.code==='23505'?409:503,data.error.message),{code:data.error.code});
   return data.value;

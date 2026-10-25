@@ -45,7 +45,7 @@ Localhost sessions, rate-limit counters and origin-bound browser push subscripti
 
 The schema generator is node scripts/supabase-schema.mjs. A trusted database administrator provisions the private role, grants/policies and login credentials. Never commit a real password. Run Supabase advisors after schema changes.
 
-Default storage allowances are 200 MiB per business and 800 MiB per project, including active upload reservations. MEDIA_BUSINESS_BYTES and MEDIA_PROJECT_BYTES override them. Upload processing needs temporary headroom. These limits protect free storage and do not enable billing or charge anyone.
+General uploads are limited to 200 MiB per business. The project limit is 800 MiB, including active reservations, with 64 MiB reserved for payment-proof headroom. Proof uploads remain available when a business fills its general-media allowance. MEDIA_BUSINESS_BYTES and MEDIA_PROJECT_BYTES override them. Upload processing needs temporary headroom. These limits protect free storage and do not enable billing or charge anyone.
 
 Free provider quotas and inactivity policies apply. Unlimited media, bandwidth and uninterrupted service above those allowances are not included. Techverse retains control of billing activation, invoices and screenshot approval.
 

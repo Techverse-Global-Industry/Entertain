@@ -20,7 +20,7 @@ import {ensureProfessionalDefaults} from './professional-data.mjs';
 import {professionalRoutes} from './professional-routes.mjs';
 import {deliveryRoutes} from './delivery-routes.mjs';
 
-export const root = process.env.LAMBDA_TASK_ROOT?resolve(process.env.LAMBDA_TASK_ROOT):resolve(dirname(fileURLToPath(import.meta.url)), '..');
+export const root = process.env.LAMBDA_TASK_ROOT?(existsSync(join(process.env.LAMBDA_TASK_ROOT,'promote','public'))?join(process.env.LAMBDA_TASK_ROOT,'promote'):resolve(process.env.LAMBDA_TASK_ROOT)):resolve(dirname(fileURLToPath(import.meta.url)), '..');
 export function prepareAssets() {
   const directory = join(root, 'public', 'media'); mkdirSync(directory, { recursive: true });
   const files = { 'henry-soiree.jpeg': 'WhatsApp Image 2026-10-24 at 12.27.46 AM.jpeg', 'henry-rebirth.jpeg': 'WhatsApp Image 2026-10-24 at 12.27.46 AM (1).jpeg', 'henry-identity.jpeg': 'WhatsApp Image 2026-10-24 at 12.27.46 AM (4).jpeg' };

@@ -1,5 +1,5 @@
 import {z} from 'zod';
-import {fail,hash,uid,now,json,parse,statusOf} from './core.mjs';
+import {fail,hash,uid,now,json,parse} from './core.mjs';
 import {requireModule} from './professional-data.mjs';
 const MB=1024*1024,stageCaps={image:8*MB,photo:20*MB,audio:25*MB,video:40*MB};
 const bodySchema=z.object({target:z.string().max(250),name:z.string().min(1).max(180),mime:z.enum(['image/jpeg','image/png','image/webp','video/mp4','video/webm','audio/mpeg','audio/mp4','audio/x-m4a','audio/ogg','audio/wav','audio/x-wav']),size:z.number().int().min(1).max(40*MB)});
@@ -23,7 +23,7 @@ export function cloudUploadTools(ctx){
    }
   }else if(guest){
    const row=store.get('SELECT * FROM '+guest[1]+' WHERE id=?',guest[2]),bearer=req.get('Authorization')?.replace(/^Bearer /,'')||'';
-   fail(row&&bearer&&row.token===hash(bearer),404,'This payment link is invalid.');t=tenant(req,row.tenant_id);fail(row.status==='awaiting_payment'&&statusOf(store,t)==='active',409,'Payment is not currently due.');
+   fail(row&&bearer&&row.token===hash(bearer),404,'This payment link is invalid.');t=tenant(req,row.tenant_id);fail(row.status==='awaiting_payment',409,'Payment is not currently due.');
   }else fail(false,404,'This upload destination is unavailable.');
   fail((['image','photo'].includes(kind)&&mime.startsWith('image/'))||(kind==='video'&&mime.startsWith('video/'))||(kind==='audio'&&mime.startsWith('audio/')),400,'Choose the correct file type.');
   return {t,kind,field:business&&!business[3]&&business[2]!=='assets'?'media':business?.[2]==='assets'?'image':'proof'};
@@ -36,8 +36,9 @@ export function cloudUploadTools(ctx){
   store.tx(()=>{
    const global=store.get('SELECT COALESCE(SUM(size),0) AS n FROM file_objects').n+store.get('SELECT COALESCE(SUM(reserved),0) AS n FROM upload_intents').n;
    const business=store.get('SELECT COALESCE(SUM(size),0) AS n FROM file_objects WHERE tenant_id=?',t.id).n+store.get('SELECT COALESCE(SUM(reserved),0) AS n FROM upload_intents WHERE tenant_id=?',t.id).n;
-   fail(global+reserved<=Number(process.env.MEDIA_PROJECT_BYTES||800*MB),413,'Project storage is full. Contact Techverse to free some space.');
-   fail(business+reserved<=Number(process.env.MEDIA_BUSINESS_BYTES||200*MB),413,'This business has reached its media allowance. Contact Techverse to free some space.');
+   const projectLimit=Number(process.env.MEDIA_PROJECT_BYTES||800*MB),available=field==='proof'?projectLimit:Math.max(0,projectLimit-64*MB);
+   fail(global+reserved<=available,413,'Project storage is full. Contact Techverse for storage help.');
+   fail(field==='proof'||business+reserved<=Number(process.env.MEDIA_BUSINESS_BYTES||200*MB),413,'This business has reached its media allowance. Contact Techverse for storage help.');
    store.run('INSERT INTO upload_intents VALUES(?,?,?,?,?,?,?,?,?)',id,t.id,input.target,owner(req),json(doc),'pending',reserved,new Date(Date.now()+20*60000).toISOString(),new Date(Date.now()+125*60000).toISOString());
   });
   try{res.json({id,uploadUrl:store.rpc('storage.upload',{bucket:doc.bucket,path})});}catch(error){store.run('DELETE FROM upload_intents WHERE id=?',id);throw error;}
