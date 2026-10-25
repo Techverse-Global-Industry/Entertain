@@ -21,10 +21,7 @@ export const parse = (value, fallback = {}) => { try { return JSON.parse(value);
 export class AppError extends Error { constructor(status, message) { super(message); this.status = status; } }
 export const fail = (condition, status, message) => { if (!condition) throw new AppError(status, message); };
 
-export function openStore(directory) {
-  const dir = resolve(directory); mkdirSync(dir, { recursive: true }); mkdirSync(join(dir, 'uploads'), { recursive: true });
-  const db = new DatabaseSync(join(dir, 'promote.sqlite'));
-  db.exec(`PRAGMA journal_mode=WAL; PRAGMA foreign_keys=ON; PRAGMA busy_timeout=5000;
+export const sqliteSchema = `PRAGMA journal_mode=WAL; PRAGMA foreign_keys=ON; PRAGMA busy_timeout=5000;
     CREATE TABLE IF NOT EXISTS settings (key TEXT PRIMARY KEY, value TEXT NOT NULL);
     CREATE TABLE IF NOT EXISTS tenants (id TEXT PRIMARY KEY, slug TEXT NOT NULL UNIQUE, name TEXT NOT NULL, published INTEGER NOT NULL DEFAULT 0, doc TEXT NOT NULL, created_at TEXT NOT NULL);
     CREATE TABLE IF NOT EXISTS users (id TEXT PRIMARY KEY, email TEXT NOT NULL UNIQUE COLLATE NOCASE, name TEXT NOT NULL, password TEXT NOT NULL, role TEXT NOT NULL DEFAULT 'user', created_at TEXT NOT NULL);
@@ -63,7 +60,12 @@ export function openStore(directory) {
     CREATE INDEX IF NOT EXISTS event_plans_tenant ON event_plans(tenant_id,event_id);
     CREATE INDEX IF NOT EXISTS delivery_assets_tenant ON delivery_assets(tenant_id,created_at);
     CREATE INDEX IF NOT EXISTS client_deliveries_tenant ON client_deliveries(tenant_id,created_at);
-  `);
+  `;
+
+export function openStore(directory) {
+  const dir = resolve(directory); mkdirSync(dir, { recursive: true }); mkdirSync(join(dir, 'uploads'), { recursive: true });
+  const db = new DatabaseSync(join(dir, 'promote.sqlite'));
+  db.exec(sqliteSchema);
   const get = (sql, ...args) => db.prepare(sql).get(...args);
   const all = (sql, ...args) => db.prepare(sql).all(...args);
   const run = (sql, ...args) => db.prepare(sql).run(...args);
@@ -158,7 +160,7 @@ export async function createUser(store, { email, name, password, role = 'user' }
   const id = uid('usr_');
   const encoded = await bcrypt.hash(password, 12);
   try { store.run('INSERT INTO users VALUES(?,?,?,?,?,?)', id, email.toLowerCase().trim(), name.trim(), encoded, role, now()); }
-  catch (e) { if (e.code?.includes('CONSTRAINT') || e.message.includes('UNIQUE')) throw new AppError(409, 'An account already exists with this email. Sign in instead.'); throw e; }
+  catch (e) { if (e.code==='23505' || e.code?.includes('CONSTRAINT') || e.message.includes('UNIQUE')) throw new AppError(409, 'An account already exists with this email. Sign in instead.'); throw e; }
   return { id, email: email.toLowerCase().trim(), name, role };
 }
 export function validateQuestions(questions, answers) {

@@ -1,4 +1,5 @@
 import express from 'express';
+import {cloudUploadTools} from './cloud-uploads.mjs';
 import helmet from 'helmet';
 import multer from 'multer';
 import bcrypt from 'bcryptjs';
@@ -19,7 +20,7 @@ import {ensureProfessionalDefaults} from './professional-data.mjs';
 import {professionalRoutes} from './professional-routes.mjs';
 import {deliveryRoutes} from './delivery-routes.mjs';
 
-export const root = resolve(dirname(fileURLToPath(import.meta.url)), '..');
+export const root = process.env.LAMBDA_TASK_ROOT?resolve(process.env.LAMBDA_TASK_ROOT):resolve(dirname(fileURLToPath(import.meta.url)), '..');
 export function prepareAssets() {
   const directory = join(root, 'public', 'media'); mkdirSync(directory, { recursive: true });
   const files = { 'henry-soiree.jpeg': 'WhatsApp Image 2026-10-24 at 12.27.46 AM.jpeg', 'henry-rebirth.jpeg': 'WhatsApp Image 2026-10-24 at 12.27.46 AM (1).jpeg', 'henry-identity.jpeg': 'WhatsApp Image 2026-10-24 at 12.27.46 AM (4).jpeg' };
@@ -28,14 +29,15 @@ export function prepareAssets() {
 
 export function createApp(options = {}) {
   const proxyPolicy=netlifyProxyPolicy(process.env);
-  const store = openStore(options.dataDir || process.env.DATA_DIR || join(root, '.data'));
+  const store = options.store || openStore(options.dataDir || process.env.DATA_DIR || join(root, '.data'));
   if (options.seed !== false) seedTenant(store);
   ensureProfessionalDefaults(store);
-  ensureKeys(store); prepareAssets();
+  ensureKeys(store); if(!store.cloud)prepareAssets();
   const app = express();
   const production = process.env.NODE_ENV === 'production';
   if (process.env.TRUST_PROXY === '1') app.set('trust proxy', 1);
   app.disable('x-powered-by');
+  if(store.cloud){app.set('trust proxy',1);app.use((req,res,next)=>store.requestContext.run({},next));}
   app.use(helmet({ contentSecurityPolicy: { directives: { defaultSrc: ["'self'"], scriptSrc: ["'self'"], styleSrc: ["'self'", "'unsafe-inline'"], imgSrc: ["'self'", 'data:', 'blob:'], fontSrc: ["'self'"], mediaSrc:["'self'",'blob:'], connectSrc: ["'self'"], objectSrc: ["'none'"], frameAncestors: ["'none'"], upgradeInsecureRequests: production ? [] : null } }, crossOriginEmbedderPolicy: false, strictTransportSecurity: production ? undefined : false, referrerPolicy: { policy: 'no-referrer' } }));
   app.use(express.json({ limit: '128kb' }));
   app.get('/api/health',(req,res)=>{store.get('SELECT 1');res.set('Cache-Control','no-store').json({ok:true,database:true,version:'1.0.0'});});
@@ -107,11 +109,13 @@ export function createApp(options = {}) {
     return id;
   };
   let sending = false;
-  const flushPush = async () => {
+  const flushPush = async ({deadline=Date.now()+18000}={}) => {
     if (sending) return; sending = true;
     try {
       const keys = store.setting('vapid');
-      for (const job of store.all("SELECT j.*,s.payload,s.endpoint,s.user_id,s.tenant_id,n.title,n.body,n.url,n.audience,n.permission,n.event_id FROM push_jobs j JOIN subscriptions s ON j.subscription_id=s.id JOIN notices n ON j.notice_id=n.id WHERE j.status='pending' AND j.next_at<=? ORDER BY j.next_at LIMIT 25", now())) {
+      for (const candidate of store.all("SELECT j.*,s.payload,s.endpoint,s.user_id,s.tenant_id,n.title,n.body,n.url,n.audience,n.permission,n.event_id FROM push_jobs j JOIN subscriptions s ON j.subscription_id=s.id JOIN notices n ON j.notice_id=n.id WHERE j.status IN ('pending','processing') AND j.next_at<=? ORDER BY j.next_at LIMIT 25", now())) {
+        if(Date.now()>deadline)break;
+        const job=store.tx(()=>{const fresh=store.get('SELECT status,next_at FROM push_jobs WHERE id=?',candidate.id);if(!['pending','processing'].includes(fresh?.status)||fresh.next_at>now())return null;store.run("UPDATE push_jobs SET status='processing',next_at=? WHERE id=?",new Date(Date.now()+120000).toISOString(),candidate.id);return candidate;});if(!job)continue;
         const t = readTenant(store, job.tenant_id);
         if(job.audience==='public'&&!(parse(job.payload).publicEnabled??!job.user_id)){store.run("UPDATE push_jobs SET status='cancelled' WHERE id=?",job.id);continue;}
         if (job.audience === 'private') {
@@ -130,12 +134,13 @@ export function createApp(options = {}) {
       }
     } finally { sending = false; }
   };
-  const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 8 * 1024 * 1024, files: 1, fields: 10, fieldSize: 4096, fieldNameSize: 100 } });
-  const mediaUpload = multer({storage:multer.memoryStorage(),limits:{fileSize:40*1024*1024,files:1,fields:10,fieldSize:4096}});
+  let upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 8 * 1024 * 1024, files: 1, fields: 10, fieldSize: 4096, fieldNameSize: 100 } });
+  let mediaUpload = multer({storage:multer.memoryStorage(),limits:{fileSize:40*1024*1024,files:1,fields:10,fieldSize:4096}});
   const tasks = [];
   const ctx = { store, auth, admin, tenant, access, feature, limited, logIn, notice, upload, mediaUpload, flushPush, tasks,production };
+  if(store.cloud){const tools=cloudUploadTools(ctx);ctx.upload=tools.wrap(upload);ctx.mediaUpload=tools.wrap(mediaUpload);app.post('/api/uploads/start',tools.start);}
 
-  app.get('/api/bootstrap', (req, res) => res.json({ setupRequired: !store.get("SELECT id FROM users WHERE role='admin'"), professions: store.setting('professions', professions), permissions, featureNames, platformName:store.setting('platformName','Promote'), baseDomain:process.env.BASE_DOMAIN||'localhost', tenantRouting:process.env.TENANT_ROUTING==='path'?'path':'subdomain', requireTenantHost:production&&process.env.TENANT_ROUTING!=='path', directoryEnabled: store.setting('directoryEnabled', true), registrationEnabled: store.setting('publicRegistration', true), tenant: req.tenant ? { slug: req.tenant.slug, name: req.tenant.name } : null }));
+  app.get('/api/bootstrap', (req, res) => res.json({ liveTransport:store.cloud?'poll':'sse', setupRequired: !store.get("SELECT id FROM users WHERE role='admin'"), professions: store.setting('professions', professions), permissions, featureNames, platformName:store.setting('platformName','Promote'), baseDomain:process.env.BASE_DOMAIN||'localhost', tenantRouting:process.env.TENANT_ROUTING==='path'?'path':'subdomain', requireTenantHost:production&&process.env.TENANT_ROUTING!=='path', directoryEnabled: store.setting('directoryEnabled', true), registrationEnabled: store.setting('publicRegistration', true), tenant: req.tenant ? { slug: req.tenant.slug, name: req.tenant.name } : null }));
   const credentials = z.object({ email: z.email().max(180), password: z.string().min(10).max(128), name: z.string().trim().min(2).max(100) });
   app.post('/api/setup', async (req, res) => {
     limited(req, 'setup', 10); fail(!req.tenant && !store.get("SELECT id FROM users WHERE role='admin'"), 409, 'Techverse is already set up.');
@@ -185,9 +190,10 @@ export function createApp(options = {}) {
   app.get('/api/brand/:slug/icon.png', async (req, res) => {
     const t = req.params.slug === 'platform' ? null : tenant(req, req.params.slug);
     const size = req.query.size === '512' ? 512 : 192;
-    res.type('png').set('Cache-Control', 'public,max-age=300').send(await iconPng(t, size, store.dir));
+    res.type('png').set('Cache-Control', 'public,max-age=300').send(await iconPng(t, size, store.dir,store,root));
   });
   app.get('/api/live/:slug', (req, res) => {
+    if(store.cloud){const t=tenant(req,req.params.slug),member=memberOf(store,req.user,t.id);return res.json({notices:store.all('SELECT * FROM notices WHERE tenant_id=? AND created_at>? ORDER BY created_at,id LIMIT 50',t.id,String(req.query.since||now())).filter(n=>n.audience==='public'||(member&&(!n.permission||can(member,n.permission,n.event_id))))});}
     const t = tenant(req, req.params.slug), member = memberOf(store, req.user, t.id);
     res.set({ 'Content-Type': 'text/event-stream', 'Cache-Control': 'no-store', Connection: 'keep-alive', 'X-Accel-Buffering': 'no' }); res.flushHeaders();
     let last = req.get('Last-Event-ID') || req.query.since || now(), closed = false;

@@ -1,3 +1,4 @@
+import {putFile,removeFile,fileInfo,sendFile} from './storage.mjs';
 import { z } from 'zod';
 import { writeFileSync, unlinkSync, existsSync, statSync } from 'node:fs';
 import { join } from 'node:path';
@@ -55,17 +56,17 @@ export function businessRoutes(app, ctx) {
     const { t } = access(req, req.params.slug, 'content'); limited(req, 'assets', 50);
     fail(await validateImage(req.file), 400, 'Upload a valid JPG, PNG or WebP image up to 8 MB.');
     const id = uid('asset_'), filename = `${id}.webp`, buffer=await normalizeImage(req.file.buffer);
-    writeFileSync(join(store.dir, 'uploads', filename), buffer);
-    try { store.run('INSERT INTO assets VALUES(?,?,?,?,?)', id, t.id, filename, 'image/webp', now()); } catch(error){unlinkSync(join(store.dir,'uploads',filename));throw error;}
+    putFile(store,filename,buffer,{tenantId:t.id,mime:'image/webp'});
+    try { store.run('INSERT INTO assets VALUES(?,?,?,?,?)', id, t.id, filename, 'image/webp', now()); } catch(error){removeFile(store,filename);throw error;}
     res.status(201).json({ id, url: `/media/uploads/${filename}`, mime:'image/webp', type:'image' });
   });
   app.get('/api/business/:slug/assets', auth, (req,res)=>{
     const {t}=access(req,req.params.slug,'content',null,true);
-    const assets=store.all('SELECT id,path,mime,created_at FROM assets WHERE tenant_id=? ORDER BY created_at DESC LIMIT 200',t.id).filter(a=>existsSync(join(store.dir,'uploads',a.path))).map(a=>({id:a.id,url:`/media/uploads/${a.path}`,mime:a.mime,type:a.mime.startsWith('video/')?'video':a.mime.startsWith('audio/')?'audio':'image',size:statSync(join(store.dir,'uploads',a.path)).size,createdAt:a.created_at}));
+    const assets=store.all('SELECT id,path,mime,created_at FROM assets WHERE tenant_id=? ORDER BY created_at DESC LIMIT 200',t.id).filter(a=>fileInfo(store,a.path)).map(a=>({id:a.id,url:`/media/uploads/${a.path}`,mime:a.mime,type:a.mime.startsWith('video/')?'video':a.mime.startsWith('audio/')?'audio':'image',size:fileInfo(store,a.path).size,createdAt:a.created_at}));
     res.json({assets});
   });
   app.get('/media/uploads/:filename', (req, res) => {
-    const row = store.get('SELECT * FROM assets WHERE path=?', req.params.filename); fail(row, 404, 'Media not found.'); res.type(row.mime).set('Cache-Control', 'public,max-age=31536000,immutable').sendFile(row.path,{root:join(store.dir,'uploads'),dotfiles:'deny'});
+    const row = store.get('SELECT * FROM assets WHERE path=?', req.params.filename); fail(row, 404, 'Media not found.'); res.type(row.mime).set('Cache-Control','public,max-age=31536000,immutable');sendFile(store,res,row.path,{public:true});
   });
   app.put('/api/business/:slug/payment-accounts', auth, (req, res) => {
     const { t, m } = access(req, req.params.slug, 'payments'); fail(['owner', 'admin'].includes(m.role), 403, 'Only the owner can change receiving accounts.');
@@ -152,7 +153,7 @@ export function businessRoutes(app, ctx) {
     const row = store.get('SELECT * FROM proofs WHERE id=?', req.params.id); fail(row, 404, 'Proof not found.');
     if (row.kind === 'invoice') fail(req.user.role === 'admin' || ['owner', 'admin'].includes(access(req, row.tenant_id, null, null, true).m.role), 403, 'Owner access required.');
     else { const eventId = row.kind === 'order' ? store.get('SELECT event_id FROM orders WHERE id=?', row.reference_id)?.event_id : null; access(req, row.tenant_id, 'payments', eventId, true); }
-    res.type(row.mime).set('Cache-Control', 'no-store').sendFile(row.path,{root:join(store.dir,'uploads'),dotfiles:'deny'});
+    res.type(row.mime).set('Cache-Control','private,no-store');sendFile(store,res,row.path);
   });
   app.post('/api/business/:slug/proofs/:id/review', auth, (req, res) => {
     const t = tenant(req, req.params.slug), proof = store.get("SELECT * FROM proofs WHERE id=? AND tenant_id=? AND kind!='invoice'", req.params.id, t.id); fail(proof, 404, 'Payment proof not found.');
@@ -209,8 +210,8 @@ export function businessRoutes(app, ctx) {
     fail(Number(req.body.amount) === invoice.amount && req.body.currency === invoice.currency, 400, 'Amount and currency must match this invoice.');
     const reference = z.string().trim().min(2).max(120).parse(req.body.reference), id = uid('proof_'), filename = `${id}.image`;
     fail(store.setting('platformAccounts', []).some(a => a.currency === invoice.currency), 409, 'Techverse needs to configure a receiving account for this currency.');
-    writeFileSync(join(store.dir, 'uploads', filename), req.file.buffer, { mode: 0o600 });
-    try { store.tx(() => { const current = store.get('SELECT status FROM invoices WHERE id=?', invoice.id); fail(['unpaid','rejected'].includes(current.status), 409, 'Payment proof has already been submitted.'); store.run('INSERT INTO proofs VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?)', id, t.id, 'invoice', invoice.id, filename, req.file.mimetype, invoice.amount, invoice.currency, reference, 'pending', null, '', now()); store.run("UPDATE invoices SET status='awaiting_review' WHERE id=?", invoice.id); store.audit(t.id, req.user.id, 'invoice.proof_submitted', { invoiceId: invoice.id }); notice(t.id, 'private', 'Platform payment proof', 'A business payment is ready for Techverse verification.', '/admin/billing', 'platform_admin'); }); } catch(e) { unlinkSync(join(store.dir, 'uploads', filename)); throw e; }
+    putFile(store,filename,req.file.buffer,{tenantId:t.id,mime:req.file.mimetype,private:true});
+    try { store.tx(() => { const current = store.get('SELECT status FROM invoices WHERE id=?', invoice.id); fail(['unpaid','rejected'].includes(current.status), 409, 'Payment proof has already been submitted.'); store.run('INSERT INTO proofs VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?)', id, t.id, 'invoice', invoice.id, filename, req.file.mimetype, invoice.amount, invoice.currency, reference, 'pending', null, '', now()); store.run("UPDATE invoices SET status='awaiting_review' WHERE id=?", invoice.id); store.audit(t.id, req.user.id, 'invoice.proof_submitted', { invoiceId: invoice.id }); notice(t.id, 'private', 'Platform payment proof', 'A business payment is ready for Techverse verification.', '/admin/billing', 'platform_admin'); }); } catch(e) { removeFile(store,filename); throw e; }
     res.status(201).json({ ok: true });
   });
   app.get('/api/business/:slug/export/:kind', auth, (req, res) => {

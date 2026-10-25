@@ -1,9 +1,11 @@
+import {uploadCloudForm} from './cloud-api.mjs';
 import React, { createContext, useCallback, useContext, useEffect, useRef, useState } from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import { ArrowUpRight, X, Check, AlertCircle, Loader2, Download, Bell, Radio, ExternalLink, CheckCircle2, ChevronDown, Plus, Camera, Images, Video, Image as ImageIcon, Upload } from 'lucide-react';
 import {makeTheme} from '../shared/theme.mjs';
 
 export async function api(path, options = {}) {
+  if(import.meta.env.VITE_CLOUD_UPLOADS==='1'&&options.body instanceof FormData)return uploadCloudForm(path,options,api);
   const headers = { 'X-Promote-Request': '1', ...options.headers };
   let body = options.body;
   if (body && !(body instanceof FormData)) { headers['Content-Type'] = 'application/json'; body = JSON.stringify(body); }
@@ -48,15 +50,17 @@ export function useRemote(path) {
   return { ...state,data:state.path===path?state.data:null,error:state.path===path?state.error:null,loading:state.path===path?state.loading:!!path, refresh };
 }
 export function useLive(slug, onRefresh) {
+  const {bootstrap}=useSession();
   const callback = useRef(onRefresh); useEffect(() => { callback.current = onRefresh; }, [onRefresh]);
   const [live, setLive] = useState(false);
   useEffect(() => {
     if (!slug) return;
+    if(bootstrap?.liveTransport==='poll'){let stopped=false,refreshing=false;setLive(navigator.onLine);const offline=()=>setLive(false);const refresh=async()=>{if(stopped||refreshing||document.visibilityState!=='visible')return;if(!navigator.onLine){setLive(false);return;}refreshing=true;try{const result=await callback.current?.();if(!stopped)setLive(result!==undefined);}catch{if(!stopped)setLive(false);}finally{refreshing=false;}};const timer=setInterval(refresh,15000);window.addEventListener('online',refresh);window.addEventListener('offline',offline);document.addEventListener('visibilitychange',refresh);return()=>{stopped=true;clearInterval(timer);window.removeEventListener('online',refresh);window.removeEventListener('offline',offline);document.removeEventListener('visibilitychange',refresh);setLive(false);};}
     const source = new EventSource(slug === '__admin' ? '/api/admin/live' : `/api/live/${slug}`);
     source.onopen = () => setLive(true); source.onerror = () => setLive(false); source.onmessage = () => callback.current?.();
     const fallback = setInterval(() => { if (document.visibilityState === 'visible') callback.current?.(); }, 30000);
     return () => { source.close(); clearInterval(fallback); setLive(false); };
-  }, [slug]);
+  }, [slug,bootstrap?.liveTransport]);
   return live;
 }
 export function Brand({ dark = false, small = false }) { const {bootstrap}=useSession(); const name=bootstrap?.platformName||'Promote';return <Link to="/" className={`brand ${dark ? 'on-dark' : ''}`} aria-label={`${name} home`}><span className="brand-mark">{name[0].toLowerCase()}<span>↗</span></span><span className="brand-word">{name.toLowerCase()}<span className="brand-dot">.</span>{!small && <small>BY TECHVERSE</small>}</span></Link>; }

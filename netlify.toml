@@ -6,6 +6,14 @@
 [build.environment]
   NODE_VERSION = "24"
   NPM_FLAGS = "--include=dev"
+  VITE_CLOUD_UPLOADS = "1"
+  PROMOTE_HOSTING = "supabase"
+
+[functions]
+  directory = "netlify/functions"
+  node_bundler = "esbuild"
+  external_node_modules = ["sharp", "pg"]
+  included_files = ["server/cloud-worker.mjs", "server/postgres-sql.mjs", "public/media/henry-soiree.jpeg"]
 
 [[plugins]]
   package = "./netlify/plugins/backend"
@@ -21,7 +29,7 @@
     X-Content-Type-Options = "nosniff"
     Referrer-Policy = "no-referrer"
     X-Frame-Options = "DENY"
-    Content-Security-Policy = "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self'; media-src 'self' blob:; connect-src 'self'; object-src 'none'; frame-ancestors 'none'; upgrade-insecure-requests"
+    Content-Security-Policy = "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https://tulccbuhclbepnyvrfiv.supabase.co; font-src 'self'; media-src 'self' blob: https://tulccbuhclbepnyvrfiv.supabase.co; connect-src 'self' https://tulccbuhclbepnyvrfiv.supabase.co; object-src 'none'; frame-ancestors 'none'; upgrade-insecure-requests"
 
 [[headers]]
   for = "/assets/*"

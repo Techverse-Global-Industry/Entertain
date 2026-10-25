@@ -30,6 +30,7 @@ export function adminRoutes(app, ctx) {
     });
   });
   app.get('/api/admin/live', admin, (req, res) => {
+    if(store.cloud)return res.json({revision:store.get('SELECT COUNT(*) AS n FROM activity').n});
     res.set({ 'Content-Type': 'text/event-stream', 'Cache-Control': 'no-store', Connection: 'keep-alive', 'X-Accel-Buffering': 'no' }); res.flushHeaders();
     let latest = store.get('SELECT COUNT(*) AS n FROM activity').n;
     res.write('retry: 5000\n\n');

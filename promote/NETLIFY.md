@@ -1,77 +1,73 @@
-# Deploying Promote on Netlify
+# TG Entertainment: Netlify and Supabase
 
-Netlify serves the built website and PWA. A persistent Node.js service runs the existing API, SQLite database, uploaded media and scheduled notification/billing work. The current backend is not a Netlify Function: it needs a mounted data volume and a process that remains running.
+The production configuration uses Netlify for the website, PWA and API functions, and Supabase for Postgres and uploaded files. The deployment budget is $0. No paid Render service or disk is required or provisioned.
 
-## Deployment layout
+## Architecture
 
-- Netlify builds `promote` with Node.js 24, runs `npm run build`, and publishes `promote/dist`.
-- The local build plugin configures signed proxy rules for `/api/*` and `/media/uploads/*`. These rules run before the SPA fallback. API requests, private payment screenshots and uploaded videos reach the Node service at the same public website origin.
-- Netlify signs proxied requests with HS256. The API verifies the signature, expiration, Netlify project ID and public origin before accepting a forwarded host. Session cookies stay Secure and HttpOnly. Private API responses use `Cache-Control: no-store`.
-- Built-in flyers, application assets, the service worker and offline page are published as static files. Private data, backups, passwords, sessions and uploaded payment proofs stay outside the publish directory.
-- The build fails if a persistent backend or proxy signing key is missing. Preview deploys require an explicitly configured staging backend.
+Netlify builds the repository with base directory promote, command npm run build, and publish directory dist. Modern functions serve /api/* and /media/uploads/*, with a minute-based maintenance function for reminders, retry jobs and billing.
 
-## Hosting needed
+The API uses a loopback HTTP adapter to preserve Express routing, cookies, binary output and permission checks. Postgres I/O runs in a worker to preserve existing synchronous booking/payment transactions. A shared advisory lock coordinates writes across instances; job leases prevent concurrent senders claiming the same pending notification.
 
-Use one persistent Node.js 24 service with a mounted volume at `/app/data`, using the included Dockerfile. The same service handles HTTP, uploaded media and the existing scheduler; no separate worker is needed for this version. Configure its health check as `/api/health`.
+Public media uses the public Storage bucket. Payment proofs and private client deliveries use a private bucket and 60-second signed links issued after authorization. Private content stays outside the service-worker cache.
 
-An existing VPS/container host can run this. A Render Starter service with a 1 GB persistent disk is another option; confirm its current price and workspace before provisioning. Do not use an ephemeral disk or a sleeping free instance for the live database and scheduled alerts.
+Files upload directly to signed, size-limited private staging buckets, avoiding Netlify's buffered request limit. The original API validates and processes each file before publishing it. Consumed staging locations retain an empty object until their signed token expires, preventing replay.
 
-Netlify account access and a backend host have not been configured for this project yet. This document and `netlify.toml` prepare deployment; they do not mean a production site is already published.
+Notification delivery starts after writes through context.waitUntil. Visible pages refresh every 15 seconds in serverless mode; the local server retains SSE. Device Web Push is independent of page refresh and requires visitor permission.
 
-## Free-only hosting requirement
+Production credentials are not shared with deploy previews. Configure separate staging infrastructure before enabling previews.
 
-The deployment budget is $0. Paid compute and persistent disks have not been approved, and the paid Render Blueprint was removed before any service was created.
+## Runtime variables
 
-Netlify's free plan can serve the website and PWA within its quotas. The current backend uses a local SQLite database and uploaded files. Render Free cannot preserve those files across idle spin-downs, restarts or deploys, and does not support persistent disks. Do not place the live customer database on that ephemeral filesystem.
+Set these in the Netlify project's production Functions environment:
 
-A Netlify-hosted interface can show its own loading state while a separate API starts, but this does not eliminate backend startup delay or keep scheduled notifications running while that backend sleeps.
-
-A working free deployment needs an appropriate free persistent server, or backend changes to use a free managed database and file storage. Check the chosen provider's quotas and inactivity rules, and complete the data migration and real-device notification checks before opening the application to customers. The current code has not yet been adapted to a serverless database/storage architecture.
-
-## Environment configuration
-
-In Netlify, set:
-
-| Variable | Value |
+| Variable | Purpose |
 | --- | --- |
-| `PROMOTE_BACKEND_URL` | The actual HTTPS backend origin, without a path |
-| `PROMOTE_PROXY_SECRET` | A random value of at least 32 characters, shared with the backend |
+| DATABASE_URL | Private tg_app role on the Supabase transaction pooler, port 6543 |
+| SUPABASE_URL | Project HTTPS API origin |
+| SUPABASE_SERVICE_ROLE_KEY | Server-only Storage credential |
+| APP_URL | Public HTTPS website origin |
+| BASE_DOMAIN | Website hostname without scheme or path |
+| TENANT_ROUTING | path for the initial Netlify address |
+| NODE_ENV | production |
+| TRUST_PROXY | 1 for the controlled loopback adapter |
+| VAPID_SUBJECT | Real operator contact email |
+| AWS_LAMBDA_JS_RUNTIME | nodejs24.x; configure through Netlify, not TOML |
 
-The signing key must be available in both **Builds** and **Runtime** scopes. Do not use a `VITE_` prefix for this key or put its value in source files. It is referenced by name in proxy rules and never added to browser JavaScript.
+The Supabase extension's SUPABASE_DATABASE_URL is also accepted as the API origin. Use Other with no public variable prefix. Never use a VITE_ prefix for credentials. Postgres TLS verifies the certificate and hostname; DATABASE_SSL_CA can supply a trusted provider CA if needed.
 
-Configure the backend using `.env.netlify.example`. Set `APP_URL` to the real public HTTPS Netlify origin, `BASE_DOMAIN` to that origin's hostname, and `NETLIFY_SITE_ID` to the Netlify project ID. Both hosts must use the same signing key. `DATA_DIR` must point at the mounted volume. Set a real Web Push contact email.
+The private schema enables RLS and grants no browser access. Only the private backend role accesses records; the API enforces tenant, staff, guest-link and global-administrator permissions.
 
-## Initial addresses and separate promoter domains
+## Existing data and limits
 
-Set `TENANT_ROUTING=path` for the first `*.netlify.app` address. MC Henry then opens at `/p/mchenry`, and the app does not redirect visitors to unconnected subdomains. The address displayed in the workspace and registration form follows this setting.
+The existing administrator, password hash, Web Push signing keys, branding, services, event, booking and proof records were copied to the dedicated project. All uploaded files were verified against their original SHA-256 checksums. The local database, uploads and backups remain outside source control.
 
-For independent business origins and installations, connect a domain Techverse owns, configure its wildcard DNS/HTTPS and hosting ingress, then use `TENANT_ROUTING=subdomain`. A `*.netlify.app` project address does not provide arbitrary nested promoter subdomains. Several branded profiles on one origin share browser storage and notification permission; choose the final domains before inviting fans to install.
+Localhost sessions, rate-limit counters and origin-bound browser push subscriptions/jobs are not transferred. Sign in and enable notifications on the final HTTPS address. Fans need no account.
 
-## Preserve the current administrator and uploaded files
+The schema generator is node scripts/supabase-schema.mjs. A trusted database administrator provisions the private role, grants/policies and login credentials. Never commit a real password. Run Supabase advisors after schema changes.
 
-Create a fresh consistent backup with `node scripts/backup.mjs`. Transfer the SQLite snapshot and accompanying `uploads` folder securely to the backend's mounted data directory before opening production to visitors. Preserve the database's Web Push keys. Do not commit the database or place a backup in `dist` or `public`.
+Default storage allowances are 200 MiB per business and 800 MiB per project, including active upload reservations. MEDIA_BUSINESS_BYTES and MEDIA_PROJECT_BYTES override them. Upload processing needs temporary headroom. These limits protect free storage and do not enable billing or charge anyone.
 
-Check that the migrated administrator, Henry's saved branding, existing event, and uploaded pictures appear correctly. If the backend starts with an empty database, it will require new administrator setup; it will not automatically contain the existing login or records.
+Free provider quotas and inactivity policies apply. Unlimited media, bandwidth and uninterrupted service above those allowances are not included. Techverse retains control of billing activation, invoices and screenshot approval.
 
-## Build and publish
+## Publish and verify
 
-Run the normal checks locally:
+Connect the private GitHub repository Techverse-Global-Industry/Entertain to the Netlify project and deploy main using the repository-root netlify.toml. Uploading dist alone omits the backend and scheduled function.
 
-```powershell
-npm.cmd test
-npm.cmd run build
-npm.cmd run test:e2e
-```
+Verify the actual deployed HTTPS address:
 
-Create or select the intended Netlify project, add its environment variables, and deploy from the repository root so `netlify.toml` is used. With an authenticated CLI, use `netlify deploy --build --prod`. Uploading `dist` through a generic drag-and-drop deployment bypasses the build plugin and does not configure the API routes.
+- /api/health and bootstrap return API data.
+- /p/mchenry displays the saved brand, profile, manifest and PNG icon.
+- The existing administrator can sign in and open /dashboard/mchenry.
+- Public uploads, private proofs and private download permissions work.
+- Booking availability, transfer review, free/paid tickets and staff check-in work.
+- Supported real devices receive notifications after granting permission.
 
-After publication, verify the actual HTTPS URL: public profile, administrator login, saved branding, upload preview and media delivery, booking submission, payment proof review, free/paid ticket flows, private-ticket retrieval and staff check-in. Check service-worker updates and notification delivery on real Android/iOS devices.
+Techverse can generate a separate owner invitation for Henry. Do not share the global-administrator login with a business owner.
 
-Netlify proxy requests have a documented 26-second timeout. The dashboards reconnect SSE and also refresh periodically; browser push delivery comes from the persistent backend. Verify streamed video/range requests and larger uploads on the actual deployment before sharing it widely.
+Separate promoter origins need owned domains/subdomains and HTTPS ingress. Initial /p/slug addresses share browser storage and notification permission. A Netlify project address does not supply arbitrary nested promoter subdomains.
 
-## References
+## Local development
 
-- [Netlify rewrites and signed proxies](https://docs.netlify.com/manage/routing/redirects/rewrites-proxies/)
-- [Netlify build plugins](https://docs.netlify.com/extend/install-and-use/)
-- [Netlify environment variable scopes](https://docs.netlify.com/build/environment-variables/overview/)
-- [Render persistent disks](https://render.com/docs/disks)
+The local server continues using SQLite and .data/uploads. node scripts/backup.mjs backs up that installation. Local recovery scripts do not change Supabase accounts.
+
+npm test verifies the business stories and cloud adapters; npm run build builds the frontend. Netlify's cloud build must package and validate production functions before publication is considered complete.

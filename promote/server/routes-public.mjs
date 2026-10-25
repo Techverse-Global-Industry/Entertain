@@ -1,3 +1,4 @@
+import {putFile,removeFile,fileInfo,sendFile} from './storage.mjs';
 import { z } from 'zod';
 import { writeFileSync, unlinkSync } from 'node:fs';
 import { join } from 'node:path';
@@ -129,14 +130,14 @@ export function publicRoutes(app, ctx) {
     fail(Number(req.body.amount) === doc.amount && req.body.currency === doc.currency, 400, 'The payment amount and currency must match the amount due.');
     fail((t.paymentAccounts || []).some(a => a.currency === doc.currency), 409, 'Contact the business to configure payment details.');
     const id = uid('proof_'), filename = `${id}.image`, kind = req.params.kind === 'bookings' ? 'booking' : 'order';
-    writeFileSync(join(store.dir, 'uploads', filename), req.file.buffer, { mode: 0o600 });
+    putFile(store,filename,req.file.buffer,{tenantId:t.id,mime:req.file.mimetype,private:true});
     try { store.tx(() => {
       const fresh = store.get(`SELECT status FROM ${req.params.kind} WHERE id=?`, row.id); fail(fresh.status === 'awaiting_payment', 409, 'This payment has already been submitted.');
       store.run('INSERT INTO proofs VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?)', id, row.tenant_id, kind, row.id, filename, req.file.mimetype, doc.amount, doc.currency, reference, 'pending', null, '', now());
       store.run(`UPDATE ${req.params.kind} SET status='awaiting_review' WHERE id=?`, row.id);
       notice(row.tenant_id, 'private', 'Payment proof received', 'A customer payment is ready for verification.', `/dashboard/${t.slug}/payments`, 'payments', row.event_id || null);
       store.audit(row.tenant_id, null, 'payment.proof_submitted', { proofId: id, kind });
-    }); } catch (e) { unlinkSync(join(store.dir, 'uploads', filename)); throw e; }
+    }); } catch (e) { removeFile(store,filename); throw e; }
     res.status(201).json({ id, status: 'awaiting_review' });
   });
   app.post('/api/public/:slug/metrics', (req, res) => {

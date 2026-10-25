@@ -1,3 +1,4 @@
+import {putFile,removeFile,fileInfo,sendFile} from './storage.mjs';
 import {z} from 'zod';
 import {writeFileSync,unlinkSync} from 'node:fs';
 import {join} from 'node:path';
@@ -27,8 +28,8 @@ export function sponsorRoutes(app,ctx){
     const id=uid('asset_');let bytes,mime,extension;
     if(file.mimetype.startsWith('image/')){fail(file.size<=8*1024*1024&&await validateImage(file),400,'Use a JPG, PNG or WebP image up to 8 MB.');bytes=await normalizeImage(file.buffer);mime='image/webp';extension='webp';}
     else {fail(validateVideo(file),400,'Use an MP4 or WebM video up to 40 MB.');bytes=file.buffer;mime=file.mimetype;extension=mime==='video/mp4'?'mp4':'webm';}
-    const filename=`${id}.${extension}`;writeFileSync(join(store.dir,'uploads',filename),bytes);
-    try{store.run('INSERT INTO assets VALUES(?,?,?,?,?)',id,t.id,filename,mime,now());}catch(error){unlinkSync(join(store.dir,'uploads',filename));throw error;}
+    const filename=`${id}.${extension}`;putFile(store,filename,bytes,{tenantId:t.id,mime});
+    try{store.run('INSERT INTO assets VALUES(?,?,?,?,?)',id,t.id,filename,mime,now());}catch(error){removeFile(store,filename);throw error;}
     res.status(201).json({id,url:`/media/uploads/${filename}`,mime,type:mime.startsWith('video/')?'video':'image'});
   });
   for(const method of ['post','put'])app[method](`/api/business/:slug/sponsors${method==='put'?'/:id':''}`,auth,(req,res)=>{

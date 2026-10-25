@@ -7,9 +7,9 @@
     "dev": "node scripts/dev.mjs",
     "dev:api": "node --env-file-if-exists=.env server/index.mjs",
     "dev:web": "vite --host 127.0.0.1",
-    "build": "vite build",
+    "build": "vite build --configLoader runner",
     "start": "node --env-file-if-exists=.env server/index.mjs",
-    "test": "node --test --test-concurrency=1 tests/api.test.mjs tests/hosting.test.mjs tests/professions.test.mjs tests/site-flow.test.mjs",
+    "test": "node --test --test-concurrency=1 tests/api.test.mjs tests/hosting.test.mjs tests/professions.test.mjs tests/site-flow.test.mjs tests/cloud.test.mjs",
     "test:e2e": "node tests/browser.mjs",
     "test:experience": "node tests/experience.mjs",
     "setup": "node scripts/setup.mjs",
@@ -30,7 +30,8 @@
     "react-dom": "^19.1.0",
     "react-router-dom": "^7.9.0",
     "sharp": "^0.35.5",
-    "zod": "^4.1.0"
+    "zod": "^4.1.0",
+    "pg": "8.23.1"
   },
   "devDependencies": {
     "@playwright/test": "^1.56.0",
