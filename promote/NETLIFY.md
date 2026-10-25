@@ -12,11 +12,25 @@ Netlify serves the built website and PWA. A persistent Node.js service runs the 
 
 ## Hosting needed
 
-Use one persistent Node.js 24 service with a mounted volume at `/app/data`, using the included Dockerfile. The same service handles HTTP, uploaded media and the existing scheduler; no separate worker is needed for this version. Configure its health check as `/api/health`.
+Use one persistent Node.js 24 service with a mounted data volume. The included Dockerfile uses `/app/data`; the Render Blueprint uses the native Node runtime and `/var/data`. The same service handles HTTP, uploaded media and the existing scheduler; no separate worker is needed for this version. Configure its health check as `/api/health`.
 
 An existing VPS/container host can run this. A Render Starter service with a 1 GB persistent disk is another option; confirm its current price and workspace before provisioning. Do not use an ephemeral disk or a sleeping free instance for the live database and scheduled alerts.
 
 Netlify account access and a backend host have not been configured for this project yet. This document and `netlify.toml` prepare deployment; they do not mean a production site is already published.
+
+## Paid Render backend
+
+The repository's [render.yaml](../render.yaml) defines one new `tg-entertainment-api` web service in Frankfurt. It uses paid `0.5c-512mb` compute, Node.js 24.22.1, and a 1 GB persistent disk mounted at `/var/data`. `DATA_DIR` points at that mount. Paid compute avoids the free plan's idle spin-down screen.
+
+Pricing checked on 25 October 2026: $7/month compute plus $0.25/month for the disk, before taxes, bandwidth and any workspace charges. This initial disk is for Henry's demonstration and must be sized for actual media usage before wider onboarding. Committing this file does not provision resources or start charges.
+
+Create the Netlify project first. During Blueprint setup, supply its actual HTTPS origin as `APP_URL`, its hostname as `BASE_DOMAIN`, its project ID as `NETLIFY_SITE_ID`, and a securely generated shared `PROMOTE_PROXY_SECRET` of at least 32 characters. Put the same key in Netlify's Builds and Runtime scopes. Keep secret values out of source control and chat.
+
+The connected Render creation tool cannot attach persistent disks. Apply this complete Blueprint in the Render Dashboard after approving the cost. Review the new service and disk together; the existing `tg-promote-demo` and `tg-arena-preview` services are separate projects.
+
+[Open the backend Blueprint](https://dashboard.render.com/blueprint/new?repo=https://github.com/Techverse-Global-Industry/Entertain)
+
+Transfer the current database snapshot and uploaded files securely to `/var/data` before inviting Henry to sign in. Do not commit or publish the backup. An empty deployment has no copy of the current administrator, saved profile changes or booking/payment records.
 
 ## Environment configuration
 
