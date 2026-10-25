@@ -18,7 +18,7 @@ Production credentials are not shared with deploy previews. Configure separate s
 
 ## Runtime variables
 
-Set these in the Netlify project's production Functions environment:
+Set these through the Netlify project's environment settings. On Netlify Free, ordinary settings use all scopes. Mark DATABASE_URL and SUPABASE_SERVICE_ROLE_KEY as secret values in the production context, using the supported Builds, Functions and Runtime scopes together. Confirm settings exist after saving them; a new deploy is required to apply changes.
 
 | Variable | Purpose |
 | --- | --- |
