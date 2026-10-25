@@ -1,0 +1,9 @@
+node_modules
+dist
+.data
+.env
+.env.netlify
+.env.production
+.netlify
+test-results
+.git

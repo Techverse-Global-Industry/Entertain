@@ -1,0 +1,46 @@
+.artist-site .artist-header.has-profession-nav{height:auto;min-height:88px;position:relative;z-index:30}
+.artist-site .artist-header.has-profession-nav>.container{display:grid;grid-template-columns:minmax(120px,1fr) auto auto;gap:24px;min-height:88px;padding-top:16px;padding-bottom:16px}
+.artist-header.has-profession-nav .artist-wordmark{max-width:min(300px,26vw)}
+.artist-site .artist-header.has-profession-nav nav{display:flex;position:static;flex-wrap:wrap;justify-content:center;gap:12px 20px;background:transparent;max-width:650px;width:auto;padding:0;border:0}
+.artist-header.has-profession-nav nav>a{min-height:28px;display:flex;align-items:center;white-space:nowrap}
+.artist-site [data-profile-section]{scroll-margin-top:25px}
+.artist-site :is(.artist-gallery,.artist-services,.artist-events)[data-profile-section]{padding-top:64px;padding-bottom:64px;border-top:1px solid var(--border)}
+.profile-follow{display:flex;align-items:center;justify-content:space-between;gap:25px;padding-top:32px;padding-bottom:32px;border-block:1px solid var(--border);margin-top:20px}
+.profile-follow h2{font-size:25px;margin:12px 0 9px}.profile-follow p{font-size:12px;color:var(--muted);max-width:520px}.profile-follow>.btn{flex-shrink:0}
+.artist-final>.social-links{justify-content:center;margin-top:30px}
+.professional-work-image{display:block;padding:0;width:100%;height:100%;cursor:pointer}.professional-work-image>img{width:100%;height:100%;object-fit:cover}
+.professional-section:not(.profession-work-videographer) .professional-work-grid:has(>.professional-work-card:only-child){grid-template-columns:1fr}
+.professional-section:not(.profession-work-videographer) .professional-work-card:only-child{display:grid;grid-template-columns:minmax(0,1.3fr) minmax(0,1fr);align-items:center}
+.artist-gallery .gallery-grid:has(>figure:only-child){grid-template-columns:1fr;max-width:900px;margin-inline:auto}
+.artist-gallery .gallery-grid:has(>figure:only-child) img{height:auto;max-height:650px;aspect-ratio:auto;object-fit:contain}
+.profession-photographer .artist-hero{grid-template-columns:1fr 1.1fr;gap:60px}
+.profession-photographer .artist-photo-inner{border-radius:4px}
+.profession-photographer .artist-photo-inner>img,.profession-videographer .artist-photo-inner>img,.profession-guide .artist-photo-inner>img{filter:none;transform:none;object-position:center}
+.profession-photographer .artist-photo-sticker{top:22px;right:22px;background:var(--surface);padding:15px;font-size:32px;border:1px solid var(--border);transform:none}
+.profession-photographer .profession-work-photographer .professional-work-media{aspect-ratio:4/3}
+.profession-photographer .artist-gallery .gallery-grid img{height:auto;aspect-ratio:3/4;object-position:center}
+.profession-photographer .professional-work-copy>button{padding:15px 0}
+.profession-videographer .artist-hero{grid-template-columns:1fr 1.2fr;gap:45px;min-height:580px}
+.profession-videographer .artist-photo{height:360px}
+.profession-videographer .artist-photo-inner{border-radius:10px}
+.profession-videographer .artist-photo-sticker{top:25px;font-size:35px}
+.profession-work-videographer .professional-work-grid{grid-template-columns:1fr}
+.profession-work-videographer .professional-work-card{display:grid;grid-template-columns:minmax(0,1.65fr) minmax(0,1fr);align-items:center}
+.profession-work-videographer .professional-work-media{aspect-ratio:16/9}
+.profession-work-videographer .professional-work-copy{padding:30px}
+.profession-dj .artist-photo-inner{border-radius:26px}
+.profession-dj .artist-photo-sticker{background:var(--accent);color:var(--on-accent)!important;border-radius:50%;padding:19px;transform:rotate(-12deg);font-size:38px}
+.profession-dj .sound-track-art{border-radius:50%}
+.profession-creator .artist-photo-inner{border-radius:18px 90px 18px 18px}
+.profession-guide .artist-photo-inner,.profession-organiser .artist-photo-inner{border-radius:16px}
+.profession-guide .artist-photo-sticker{background:var(--surface);border:1px solid var(--border);padding:16px;border-radius:10px;top:28px;transform:rotate(5deg);font-size:37px}
+.profession-promoter .artist-photo-inner{border-radius:100px 12px 12px 12px}
+.brand-preview.profession-photographer .brand-preview-photo{border-radius:4px}
+.brand-preview.profession-videographer .brand-preview-photo{border-radius:8px}
+.brand-preview.profession-dj .brand-preview-photo,.brand-preview.profession-guide .brand-preview-photo{border-radius:15px}
+.brand-preview.profession-creator .brand-preview-photo{border-radius:8px 40px 8px 8px}
+@media(max-width:700px){.professional-section:not(.profession-work-videographer) .professional-work-card:only-child{grid-template-columns:1fr}}
+@media(min-width:701px){.artist-header.has-profession-nav .mobile-menu{display:none}}
+@media(prefers-reduced-motion:reduce){html{scroll-behavior:auto}}
+@media(min-width:701px) and (max-width:1150px){.artist-site .artist-header.has-profession-nav>.container{grid-template-columns:minmax(0,1fr) auto;gap:12px 20px;min-height:110px}.artist-header.has-profession-nav .artist-wordmark{max-width:100%;grid-column:1;grid-row:1}.artist-header.has-profession-nav .header-actions{grid-column:2;grid-row:1}.artist-site .artist-header.has-profession-nav nav{grid-column:1/-1;grid-row:2;max-width:none;justify-content:flex-start;gap:6px 24px}.profession-photographer .artist-hero,.profession-videographer .artist-hero{gap:30px}.profession-videographer .artist-photo{height:340px}}
+@media(max-width:700px){.artist-site .artist-header.has-profession-nav{min-height:76px}.artist-site .artist-header.has-profession-nav>.container{display:flex;min-height:76px;gap:10px;padding-top:14px;padding-bottom:14px}.artist-header.has-profession-nav .artist-wordmark{flex:1;max-width:calc(100% - 164px);gap:7px}.artist-header.has-profession-nav .header-actions{margin-left:auto;gap:5px}.artist-header.has-profession-nav .mobile-menu{display:grid;min-width:36px;height:40px}.artist-site .artist-header.has-profession-nav nav{display:none;position:absolute;top:100%;left:0;right:0;width:100%;max-width:none;max-height:calc(100dvh - 90px);overflow-y:auto;flex-direction:column;align-items:stretch;justify-content:flex-start;padding:18px 24px;background:var(--surface);border-block:1px solid var(--border);gap:4px;z-index:40}.artist-site .artist-header.has-profession-nav nav.open{display:flex}.artist-header.has-profession-nav nav>a{min-height:44px;font-size:14px;padding:8px 12px;border-radius:6px}.artist-header.has-profession-nav nav>a:hover{background:var(--brand-soft)}.artist-site :is(.artist-gallery,.artist-services,.artist-events)[data-profile-section]{padding-top:45px;padding-bottom:45px}.profile-follow{flex-direction:column;align-items:flex-start;padding-top:27px;padding-bottom:27px;gap:20px}.profile-follow h2{font-size:24px}.profile-follow p{font-size:12px}.profession-photographer .artist-hero,.profession-videographer .artist-hero{grid-template-columns:1fr;gap:32px;min-height:0}.profession-photographer .artist-photo{height:410px}.profession-videographer .artist-photo{height:250px}.profession-photographer .artist-photo-sticker{font-size:28px;padding:12px}.profession-videographer .artist-photo-sticker{top:18px;right:18px;font-size:26px}.profession-guide .artist-photo-sticker{font-size:28px;padding:12px}.profession-dj .artist-photo-sticker{font-size:29px;padding:14px}.profession-work-videographer .professional-work-card{grid-template-columns:1fr}.profession-work-videographer .professional-work-copy{padding:22px}}
