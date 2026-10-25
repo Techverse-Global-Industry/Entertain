@@ -23,6 +23,7 @@ Set these through the Netlify project's environment settings. On Netlify Free, o
 | Variable | Purpose |
 | --- | --- |
 | DATABASE_URL | Private tg_app role on the Supabase transaction pooler, port 6543 |
+| DATABASE_SSL_CA | Official Supabase root certificate; trust it while verifying the pooler hostname |
 | SUPABASE_URL | Project HTTPS API origin |
 | SUPABASE_SERVICE_ROLE_KEY | Server-only Storage credential |
 | APP_URL | Public HTTPS website origin |
@@ -33,7 +34,7 @@ Set these through the Netlify project's environment settings. On Netlify Free, o
 | VAPID_SUBJECT | Real operator contact email |
 | AWS_LAMBDA_JS_RUNTIME | nodejs24.x; configure through Netlify, not TOML |
 
-The Supabase extension's SUPABASE_DATABASE_URL is also accepted as the API origin. Use Other with no public variable prefix. Never use a VITE_ prefix for credentials. Postgres TLS verifies the certificate and hostname; DATABASE_SSL_CA can supply a trusted provider CA if needed.
+The Supabase extension's SUPABASE_DATABASE_URL is also accepted as the API origin. Use Other with no public variable prefix. Never use a VITE_ prefix for credentials. Postgres TLS verifies the certificate and hostname. Set DATABASE_SSL_CA to the full PEM certificate from Supabase Database settings. The verified Supabase Studio download is https://supabase-downloads.s3-ap-southeast-1.amazonaws.com/prod/ssl/prod-ca-2021.crt. Keep certificate verification enabled.
 
 The private schema enables RLS and grants no browser access. Only the private backend role accesses records; the API enforces tenant, staff, guest-link and global-administrator permissions.
 
@@ -51,7 +52,7 @@ Free provider quotas and inactivity policies apply. Unlimited media, bandwidth a
 
 ## Publish and verify
 
-Connect the private GitHub repository Techverse-Global-Industry/Entertain to the Netlify project and deploy main using the repository-root netlify.toml. Uploading dist alone omits the backend and scheduled function.
+Connect the GitHub repository Techverse-Global-Industry/Entertain to the Netlify project and deploy main using the repository-root netlify.toml. Uploading dist alone omits the backend and scheduled function.
 
 Verify the actual deployed HTTPS address:
 
