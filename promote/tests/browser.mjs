@@ -17,6 +17,7 @@ const check=(name)=>{checks.push(name);console.log('PASS',name);};
 const noOverflow=async()=>{const result=await page.evaluate(()=>({width:innerWidth,scroll:document.documentElement.scrollWidth}));assert(result.scroll<=result.width+1,`Horizontal overflow ${JSON.stringify(result)}`);};
 try{
   await page.goto(origin+'/admin/settings');await page.getByRole('heading',{name:'Good to have you back.'}).waitFor();assert.equal(new URL(page.url()).pathname,'/login');
+  assert.equal(await page.getByRole('button',{name:'Continue with Google'}).isDisabled(),true);assert.equal(await page.getByRole('button',{name:'Continue with Apple'}).isDisabled(),true);await page.getByText('Google and Apple sign-in are coming soon and are not connected yet.').waitFor();check('Login displays Google and Apple OAuth options without backend authentication');
   await page.goto(origin+'/dashboard/mchenry/events');await page.getByRole('heading',{name:'Good to have you back.'}).waitFor();assert.equal(new URL(page.url()).pathname,'/login');check('Unauthenticated direct workspace URLs require sign-in');
   await page.goto(origin);await page.getByRole('heading',{name:/Your talent/}).waitFor();await noOverflow();
   await page.screenshot({path:'test-results/platform-desktop.png',fullPage:true});check('Platform landing and real directory render');
