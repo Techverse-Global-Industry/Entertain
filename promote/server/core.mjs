@@ -1,25 +1,69 @@
-import { DatabaseSync } from 'node:sqlite';
-import { randomBytes, createHash, generateKeyPairSync } from 'node:crypto';
-import { mkdirSync, existsSync, readFileSync, writeFileSync } from 'node:fs';
-import { resolve, join } from 'node:path';
-import bcrypt from 'bcryptjs';
+import { DatabaseSync } from "node:sqlite";
+import { randomBytes, createHash, generateKeyPairSync } from "node:crypto";
+import { mkdirSync, existsSync, readFileSync, writeFileSync } from "node:fs";
+import { resolve, join } from "node:path";
+import bcrypt from "bcryptjs";
 
 export const professions = [
-  ['mc', 'MC / Event Host', 'Mic'], ['dj', 'DJ', 'Disc3'], ['promoter', 'Event Promoter', 'Megaphone'],
-  ['organiser', 'Event Organiser / Planner', 'CalendarDays'], ['guide', 'Tour / Experience Guide', 'Compass'],
-  ['creator', 'Influencer / Content Creator', 'Camera'], ['musician', 'Musician / Live Performer', 'Music2'],
-  ['comedian', 'Comedian', 'Smile'], ['photographer', 'Photographer', 'Aperture'], ['videographer', 'Videographer', 'Video'],
+  ["mc", "MC / Event Host", "Mic"],
+  ["dj", "DJ", "Disc3"],
+  ["promoter", "Event Promoter", "Megaphone"],
+  ["organiser", "Event Organiser / Planner", "CalendarDays"],
+  ["guide", "Tour / Experience Guide", "Compass"],
+  ["creator", "Influencer / Content Creator", "Camera"],
+  ["musician", "Musician / Live Performer", "Music2"],
+  ["comedian", "Comedian", "Smile"],
+  ["photographer", "Photographer", "Aperture"],
+  ["videographer", "Videographer", "Video"],
 ].map(([id, name, icon]) => ({ id, name, icon }));
-export const featureNames = { bookings: 'Service bookings', events: 'Events & tickets', tours: 'Tours & experiences', staff: 'Staff & permissions', notifications: 'Push notifications', sponsors: 'Brand partnerships & ads', showcase:'Professional reels, albums & case studies',music:'Music, mixes & audio previews',mediaKit:'Creator media kit',planning:'Event planning & run of show',clientDelivery:'Private client galleries & film reviews',directory: 'Discovery listing', customDomain: 'Custom domain' };
-export const permissions = ['bookings', 'payments', 'events', 'scan', 'content', 'notifications', 'analytics', 'staff','planning','deliveries'];
-export const uid = (prefix = '') => prefix + randomBytes(12).toString('hex');
-export const secret = () => randomBytes(32).toString('base64url');
-export const hash = value => createHash('sha256').update(value).digest('hex');
+export const featureNames = {
+  bookings: "Service bookings",
+  events: "Events & tickets",
+  tours: "Tours & experiences",
+  staff: "Staff & permissions",
+  notifications: "Push notifications",
+  sponsors: "Brand partnerships & ads",
+  showcase: "Professional reels, albums & case studies",
+  music: "Music, mixes & audio previews",
+  mediaKit: "Creator media kit",
+  planning: "Event planning & run of show",
+  clientDelivery: "Private client galleries & film reviews",
+  directory: "Discovery listing",
+  customDomain: "Custom domain",
+};
+export const permissions = [
+  "bookings",
+  "payments",
+  "events",
+  "scan",
+  "content",
+  "notifications",
+  "analytics",
+  "staff",
+  "planning",
+  "deliveries",
+];
+export const uid = (prefix = "") => prefix + randomBytes(12).toString("hex");
+export const secret = () => randomBytes(32).toString("base64url");
+export const hash = (value) => createHash("sha256").update(value).digest("hex");
 export const now = () => new Date().toISOString();
-export const json = value => JSON.stringify(value);
-export const parse = (value, fallback = {}) => { try { return JSON.parse(value); } catch { return fallback; } };
-export class AppError extends Error { constructor(status, message) { super(message); this.status = status; } }
-export const fail = (condition, status, message) => { if (!condition) throw new AppError(status, message); };
+export const json = (value) => JSON.stringify(value);
+export const parse = (value, fallback = {}) => {
+  try {
+    return JSON.parse(value);
+  } catch {
+    return fallback;
+  }
+};
+export class AppError extends Error {
+  constructor(status, message) {
+    super(message);
+    this.status = status;
+  }
+}
+export const fail = (condition, status, message) => {
+  if (!condition) throw new AppError(status, message);
+};
 
 export const sqliteSchema = `PRAGMA journal_mode=WAL; PRAGMA foreign_keys=ON; PRAGMA busy_timeout=5000;
     CREATE TABLE IF NOT EXISTS settings (key TEXT PRIMARY KEY, value TEXT NOT NULL);
@@ -63,166 +107,526 @@ export const sqliteSchema = `PRAGMA journal_mode=WAL; PRAGMA foreign_keys=ON; PR
   `;
 
 export function openStore(directory) {
-  const dir = resolve(directory); mkdirSync(dir, { recursive: true }); mkdirSync(join(dir, 'uploads'), { recursive: true });
-  const db = new DatabaseSync(join(dir, 'promote.sqlite'));
+  const dir = resolve(directory);
+  mkdirSync(dir, { recursive: true });
+  mkdirSync(join(dir, "uploads"), { recursive: true });
+  const db = new DatabaseSync(join(dir, "promote.sqlite"));
   db.exec(sqliteSchema);
   const get = (sql, ...args) => db.prepare(sql).get(...args);
   const all = (sql, ...args) => db.prepare(sql).all(...args);
   const run = (sql, ...args) => db.prepare(sql).run(...args);
-  const setting = (key, fallback = null) => { const v = get('SELECT value FROM settings WHERE key=?', key); return v ? parse(v.value) : fallback; };
-  const setSetting = (key, value) => run('INSERT INTO settings(key,value) VALUES(?,?) ON CONFLICT(key) DO UPDATE SET value=excluded.value', key, json(value));
-  const tx = fn => { db.exec('BEGIN IMMEDIATE'); try { const result = fn(); db.exec('COMMIT'); return result; } catch (e) { db.exec('ROLLBACK'); throw e; } };
-  const audit = (tenant, user, action, detail = {}) => run('INSERT INTO activity VALUES(?,?,?,?,?,?)', uid('a_'), tenant || null, user || null, action, json(detail), now());
+  const setting = (key, fallback = null) => {
+    const v = get("SELECT value FROM settings WHERE key=?", key);
+    return v ? parse(v.value) : fallback;
+  };
+  const setSetting = (key, value) =>
+    run(
+      "INSERT INTO settings(key,value) VALUES(?,?) ON CONFLICT(key) DO UPDATE SET value=excluded.value",
+      key,
+      json(value),
+    );
+  const tx = (fn) => {
+    db.exec("BEGIN IMMEDIATE");
+    try {
+      const result = fn();
+      db.exec("COMMIT");
+      return result;
+    } catch (e) {
+      db.exec("ROLLBACK");
+      throw e;
+    }
+  };
+  const audit = (tenant, user, action, detail = {}) =>
+    run(
+      "INSERT INTO activity VALUES(?,?,?,?,?,?)",
+      uid("a_"),
+      tenant || null,
+      user || null,
+      action,
+      json(detail),
+      now(),
+    );
   return { db, dir, get, all, run, setting, setSetting, tx, audit };
 }
 
 export function readTenant(store, identifier) {
-  const row = store.get('SELECT * FROM tenants WHERE id=? OR slug=?', identifier, identifier);
-  return row ? { ...parse(row.doc), id: row.id, slug: row.slug, name: row.name, published: !!row.published, createdAt: row.created_at } : null;
+  const row = store.get(
+    "SELECT * FROM tenants WHERE id=? OR slug=?",
+    identifier,
+    identifier,
+  );
+  return row
+    ? {
+        ...parse(row.doc),
+        id: row.id,
+        slug: row.slug,
+        name: row.name,
+        published: !!row.published,
+        createdAt: row.created_at,
+      }
+    : null;
 }
 export function saveTenant(store, tenant) {
   const { id, slug, name, published, createdAt, ...doc } = tenant;
-  store.run('UPDATE tenants SET slug=?,name=?,published=?,doc=? WHERE id=?', slug, name, published ? 1 : 0, json(doc), id);
+  store.run(
+    "UPDATE tenants SET slug=?,name=?,published=?,doc=? WHERE id=?",
+    slug,
+    name,
+    published ? 1 : 0,
+    json(doc),
+    id,
+  );
 }
 export function statusOf(store, tenant) {
-  if (tenant.suspended) return 'suspended';
-  if (store.setting('billingEnabled', false) && store.get("SELECT id FROM invoices WHERE tenant_id=? AND status!='paid' AND status!='void' AND hold_at<=? LIMIT 1", tenant.id, now())) return 'billing_hold';
-  return 'active';
+  if (tenant.suspended) return "suspended";
+  if (
+    store.setting("billingEnabled", false) &&
+    store.get(
+      "SELECT id FROM invoices WHERE tenant_id=? AND status!='paid' AND status!='void' AND hold_at<=? LIMIT 1",
+      tenant.id,
+      now(),
+    )
+  )
+    return "billing_hold";
+  return "active";
 }
 export function sanitizeTenant(store, tenant) {
   const { paymentAccounts, suspended, billingPlan, ...publicFields } = tenant;
-  return { ...publicFields, status: statusOf(store, tenant), paymentReady: (paymentAccounts || []).some(a => a.holder && a.number), features: { ...tenant.features, directory: store.setting('directoryEnabled', true) && tenant.features.directory } };
+  return {
+    ...publicFields,
+    status: statusOf(store, tenant),
+    paymentReady: (paymentAccounts || []).some((a) => a.holder && a.number),
+    features: {
+      ...tenant.features,
+      directory:
+        store.setting("directoryEnabled", true) && tenant.features.directory,
+    },
+  };
 }
 export function memberOf(store, user, tenantId) {
   if (!user) return null;
-  if (user.role === 'admin') return { role: 'admin', permissions, eventIds: [] };
-  const row = store.get('SELECT * FROM memberships WHERE user_id=? AND tenant_id=?', user.id, tenantId);
-  if (row?.role === 'staff' && readTenant(store,tenantId)?.features?.staff === false) return null;
-  return row ? { id: row.id, role: row.role, permissions: parse(row.permissions, []), eventIds: parse(row.event_ids, []) } : null;
+  if (user.role === "admin")
+    return { role: "admin", permissions, eventIds: [] };
+  const row = store.get(
+    "SELECT * FROM memberships WHERE user_id=? AND tenant_id=?",
+    user.id,
+    tenantId,
+  );
+  if (
+    row?.role === "staff" &&
+    readTenant(store, tenantId)?.features?.staff === false
+  )
+    return null;
+  return row
+    ? {
+        id: row.id,
+        role: row.role,
+        permissions: parse(row.permissions, []),
+        eventIds: parse(row.event_ids, []),
+      }
+    : null;
 }
 export function can(member, permission, eventId = null) {
   if (!member) return false;
-  if (member.role === 'admin') return true;
-  if (member.role === 'owner') return permissions.includes(permission);
+  if (member.role === "admin") return true;
+  if (member.role === "owner") return permissions.includes(permission);
   if (!member.permissions.includes(permission)) return false;
-  return !eventId || !member.eventIds.length || member.eventIds.includes(eventId);
+  return (
+    !eventId || !member.eventIds.length || member.eventIds.includes(eventId)
+  );
 }
 export function allowedEvents(member, rows) {
-  return ['owner', 'admin'].includes(member.role) || !member.eventIds.length ? rows : rows.filter(r => member.eventIds.includes(r.id));
+  return ["owner", "admin"].includes(member.role) || !member.eventIds.length
+    ? rows
+    : rows.filter((r) => member.eventIds.includes(r.id));
 }
 export function documents(store, table, tenantId) {
-  fail(['services', 'events', 'bookings', 'orders', 'invoices', 'sponsor_campaigns'].includes(table), 500, 'Invalid collection.');
-  return store.all(`SELECT * FROM ${table} WHERE tenant_id=? ORDER BY created_at DESC`, tenantId).map(row => ({ ...parse(row.doc), ...Object.fromEntries(Object.entries(row).filter(([key]) => key !== 'doc' && key !== 'token')) }));
+  fail(
+    [
+      "services",
+      "events",
+      "bookings",
+      "orders",
+      "invoices",
+      "sponsor_campaigns",
+    ].includes(table),
+    500,
+    "Invalid collection.",
+  );
+  return store
+    .all(
+      `SELECT * FROM ${table} WHERE tenant_id=? ORDER BY created_at DESC`,
+      tenantId,
+    )
+    .map((row) => ({
+      ...parse(row.doc),
+      ...Object.fromEntries(
+        Object.entries(row).filter(([key]) => key !== "doc" && key !== "token"),
+      ),
+    }));
 }
 export function seedTenant(store) {
-  if (store.get('SELECT id FROM tenants LIMIT 1')) {
-    for(const row of store.all('SELECT id FROM tenants')){const t=readTenant(store,row.id);if(t.features?.sponsors===undefined){t.features={...t.features,sponsors:true};saveTenant(store,t);}}
+  if (store.get("SELECT id FROM tenants LIMIT 1")) {
+    for (const row of store.all("SELECT id FROM tenants")) {
+      const t = readTenant(store, row.id);
+      if (t.features?.sponsors === undefined) {
+        t.features = { ...t.features, sponsors: true };
+        saveTenant(store, t);
+      }
+    }
     return;
   }
   const tenant = {
-    id: 'tn_henry', slug: 'mchenry', name: 'MC Henry', published: true, professions: ['mc', 'guide', 'creator'],
-    tagline: 'Fine Boy Wey Mumu', headline: 'Good energy.\nGreat memories.',
-    bio: 'Event MC, nightlife personality, content creator and tour guide. From a night out in Cotonou to your next big celebration, let’s make it an experience to remember.',
-    location: 'Cotonou, Benin Republic', areas: ['Benin Republic', 'Nigeria'], email: 'hel uemeh@gmail.com'.replace(' ', ''), phone: '+22996014959',
-    accent: '#c5f36b', avatar: '/media/henry-identity.jpeg', cover: '/media/henry-soiree.jpeg',
-    social: { instagram: 'https://www.instagram.com/henryhudson_official1/', tiktok: 'https://www.tiktok.com/@mc.henry01' },
-    features: Object.fromEntries(Object.keys(featureNames).map(k => [k, k !== 'customDomain'])), paymentAccounts: [], verified: false,
-    gallery: [{ url: '/media/henry-soiree.jpeg', caption: 'The Grand Nightlife Soirée — past event' }, { url: '/media/henry-rebirth.jpeg', caption: 'The Rebirth 3.0 — past event' }, { url: '/media/henry-identity.jpeg', caption: 'Meet MC Henry' }],
-    timezone: 'Africa/Lagos', blocks: [],
+    id: "tn_henry",
+    slug: "mchenry",
+    name: "MC Henry",
+    published: true,
+    professions: ["mc", "guide", "creator"],
+    tagline: "Fine Boy Wey Mumu",
+    headline: "Good energy.\nGreat memories.",
+    bio: "Event MC, nightlife personality, content creator and tour guide. From a night out in Cotonou to your next big celebration, let’s make it an experience to remember.",
+    location: "Cotonou, Benin Republic",
+    areas: ["Benin Republic", "Nigeria"],
+    email: "hel uemeh@gmail.com".replace(" ", ""),
+    phone: "+22996014959",
+    accent: "#c5f36b",
+    avatar: "/media/henry-identity.jpeg",
+    cover: "/media/henry-soiree.jpeg",
+    social: {
+      instagram: "https://www.instagram.com/henryhudson_official1/",
+      tiktok: "https://www.tiktok.com/@mc.henry01",
+    },
+    features: Object.fromEntries(
+      Object.keys(featureNames).map((k) => [k, k !== "customDomain"]),
+    ),
+    paymentAccounts: [],
+    verified: false,
+    gallery: [
+      {
+        url: "/media/henry-soiree.jpeg",
+        caption: "The Grand Nightlife Soirée — past event",
+      },
+      {
+        url: "/media/henry-rebirth.jpeg",
+        caption: "The Rebirth 3.0 — past event",
+      },
+      { url: "/media/henry-identity.jpeg", caption: "Meet MC Henry" },
+    ],
+    timezone: "Africa/Lagos",
+    blocks: [],
   };
   const { id, slug, name, published, ...doc } = tenant;
-  store.run('INSERT INTO tenants VALUES(?,?,?,?,?,?)', id, slug, name, 1, json(doc), now());
-  const basics = [{ key: 'location', label: 'Where is the event?', type: 'text', required: true }, { key: 'guests', label: 'How many guests?', type: 'number', required: true }, { key: 'budget', label: 'What is your budget and currency?', type: 'text', required: false }];
+  store.run(
+    "INSERT INTO tenants VALUES(?,?,?,?,?,?)",
+    id,
+    slug,
+    name,
+    1,
+    json(doc),
+    now(),
+  );
+  const basics = [
+    {
+      key: "location",
+      label: "Where is the event?",
+      type: "text",
+      required: true,
+    },
+    {
+      key: "guests",
+      label: "How many guests?",
+      type: "number",
+      required: true,
+    },
+    {
+      key: "budget",
+      label: "What is your budget and currency?",
+      type: "text",
+      required: false,
+    },
+  ];
   for (const service of [
-    { title: 'MC & event hosting', category: 'mc', description: 'Your celebration deserves a host who brings the room together. Weddings, birthdays, private parties and corporate events.', duration: 4, questions: basics, icon: 'Mic' },
-    { title: 'Tours & local experiences', category: 'guide', description: 'Explore the city, discover local spots and experience the nightlife with a guide who brings the energy.', duration: 6, questions: [{ key: 'destination', label: 'Where would you like to explore?', type: 'text', required: true }, { key: 'guests', label: 'How many people?', type: 'number', required: true }, { key: 'transport', label: 'Do you need transport?', type: 'select', options: ['Yes', 'No', 'Let’s discuss'], required: true }], icon: 'Compass' },
-    { title: 'Brand collaborations', category: 'creator', description: 'Let’s create something your audience remembers. Content collaborations, brand appearances and promotional campaigns.', duration: 2, questions: [{ key: 'brand', label: 'Your brand or organisation', type: 'text', required: true }, { key: 'brief', label: 'Tell us about the collaboration', type: 'textarea', required: true }], icon: 'Sparkles' },
-  ]) store.run('INSERT INTO services VALUES(?,?,?,?)', uid('svc_'), id, json({ ...service, active: true, price: 0, currency: 'NGN', priceMode: 'quote' }), now());
-  store.setSetting('directoryEnabled', true);
-  store.setSetting('billingEnabled', false);
-  store.setSetting('platformAccounts', []);
-  store.setSetting('platformName', 'Promote');
-  store.setSetting('publicRegistration', true);
+    {
+      title: "MC & event hosting",
+      category: "mc",
+      description:
+        "Your celebration deserves a host who brings the room together. Weddings, birthdays, private parties and corporate events.",
+      duration: 4,
+      questions: basics,
+      icon: "Mic",
+    },
+    {
+      title: "Tours & local experiences",
+      category: "guide",
+      description:
+        "Explore the city, discover local spots and experience the nightlife with a guide who brings the energy.",
+      duration: 6,
+      questions: [
+        {
+          key: "destination",
+          label: "Where would you like to explore?",
+          type: "text",
+          required: true,
+        },
+        {
+          key: "guests",
+          label: "How many people?",
+          type: "number",
+          required: true,
+        },
+        {
+          key: "transport",
+          label: "Do you need transport?",
+          type: "select",
+          options: ["Yes", "No", "Let’s discuss"],
+          required: true,
+        },
+      ],
+      icon: "Compass",
+    },
+    {
+      title: "Brand collaborations",
+      category: "creator",
+      description:
+        "Let’s create something your audience remembers. Content collaborations, brand appearances and promotional campaigns.",
+      duration: 2,
+      questions: [
+        {
+          key: "brand",
+          label: "Your brand or organisation",
+          type: "text",
+          required: true,
+        },
+        {
+          key: "brief",
+          label: "Tell us about the collaboration",
+          type: "textarea",
+          required: true,
+        },
+      ],
+      icon: "Sparkles",
+    },
+  ])
+    store.run(
+      "INSERT INTO services VALUES(?,?,?,?)",
+      uid("svc_"),
+      id,
+      json({
+        ...service,
+        active: true,
+        price: 0,
+        currency: "NGN",
+        priceMode: "quote",
+      }),
+      now(),
+    );
+  store.setSetting("directoryEnabled", true);
+  store.setSetting("billingEnabled", false);
+  store.setSetting("platformAccounts", []);
+  store.setSetting("platformName", "Promote");
+  store.setSetting("publicRegistration", true);
 }
 export function ensureKeys(store) {
-  if (!store.setting('vapid')) {
-    const { publicKey, privateKey } = generateKeyPairSync('ec', { namedCurve: 'prime256v1' });
-    const pub = publicKey.export({ format: 'jwk' }), priv = privateKey.export({ format: 'jwk' });
-    const bytes = Buffer.concat([Buffer.from([4]), Buffer.from(pub.x, 'base64url'), Buffer.from(pub.y, 'base64url')]);
-    store.setSetting('vapid', { publicKey: bytes.toString('base64url'), privateKey: priv.d });
+  if (!store.setting("vapid")) {
+    const { publicKey, privateKey } = generateKeyPairSync("ec", {
+      namedCurve: "prime256v1",
+    });
+    const pub = publicKey.export({ format: "jwk" }),
+      priv = privateKey.export({ format: "jwk" });
+    const bytes = Buffer.concat([
+      Buffer.from([4]),
+      Buffer.from(pub.x, "base64url"),
+      Buffer.from(pub.y, "base64url"),
+    ]);
+    store.setSetting("vapid", {
+      publicKey: bytes.toString("base64url"),
+      privateKey: priv.d,
+    });
   }
-  if (!store.setting('bootstrapHash') && !store.get("SELECT id FROM users WHERE role='admin'")) {
-    const token = secret(); store.setSetting('bootstrapHash', hash(token));
-    writeFileSync(join(store.dir, 'bootstrap-code.txt'), token, { mode: 0o600 });
+  if (
+    !store.setting("bootstrapHash") &&
+    !store.get("SELECT id FROM users WHERE role='admin'")
+  ) {
+    const token = secret();
+    store.setSetting("bootstrapHash", hash(token));
+    writeFileSync(join(store.dir, "bootstrap-code.txt"), token, {
+      mode: 0o600,
+    });
   }
 }
-export async function createUser(store, { email, name, password, role = 'user' }) {
-  const id = uid('usr_');
+export async function createUser(
+  store,
+  { email, name, password, role = "user" },
+) {
+  const id = uid("usr_");
   const encoded = await bcrypt.hash(password, 12);
-  try { store.run('INSERT INTO users VALUES(?,?,?,?,?,?)', id, email.toLowerCase().trim(), name.trim(), encoded, role, now()); }
-  catch (e) { if (e.code==='23505' || e.code?.includes('CONSTRAINT') || e.message.includes('UNIQUE')) throw new AppError(409, 'An account already exists with this email. Sign in instead.'); throw e; }
+  try {
+    store.run(
+      "INSERT INTO users VALUES(?,?,?,?,?,?)",
+      id,
+      email.toLowerCase().trim(),
+      name.trim(),
+      encoded,
+      role,
+      now(),
+    );
+  } catch (e) {
+    if (
+      e.code === "23505" ||
+      e.code?.includes("CONSTRAINT") ||
+      e.message.includes("UNIQUE")
+    )
+      throw new AppError(
+        409,
+        "An account already exists with this email. Sign in instead.",
+      );
+    throw e;
+  }
   return { id, email: email.toLowerCase().trim(), name, role };
 }
 export function validateQuestions(questions, answers) {
   const output = {};
   for (const q of questions) {
-    const value = String(answers[q.key] ?? '').trim();
+    const value = String(answers[q.key] ?? "").trim();
     fail(!q.required || value.length > 0, 400, `Please answer: ${q.label}`);
     fail(value.length <= 3000, 400, `Answer is too long: ${q.label}`);
-    if (value && q.type === 'number') fail(Number.isFinite(Number(value)) && Number(value) >= 0, 400, `Enter a valid number: ${q.label}`);
-    if (value && q.type === 'select') fail(q.options.includes(value), 400, `Choose an option: ${q.label}`);
+    if (value && q.type === "number")
+      fail(
+        Number.isFinite(Number(value)) && Number(value) >= 0,
+        400,
+        `Enter a valid number: ${q.label}`,
+      );
+    if (value && q.type === "select")
+      fail(q.options.includes(value), 400, `Choose an option: ${q.label}`);
     output[q.key] = value;
   }
   return output;
 }
 export function issueTickets(store, order) {
-  for (let i = 0; i < order.quantity; i++) store.run('INSERT INTO tickets VALUES(?,?,?,?,?,?,?,?)', uid('tk_'), order.tenant_id, order.event_id, order.id, secret(), null, null, now());
+  for (let i = 0; i < order.quantity; i++)
+    store.run(
+      "INSERT INTO tickets VALUES(?,?,?,?,?,?,?,?)",
+      uid("tk_"),
+      order.tenant_id,
+      order.event_id,
+      order.id,
+      secret(),
+      null,
+      null,
+      now(),
+    );
 }
 export function invoiceResult(store, invoice) {
   const { doc, ...fields } = invoice;
-  return { ...parse(doc), ...fields, proofs: store.all('SELECT id,status,note,created_at,amount,currency,reference FROM proofs WHERE kind=? AND reference_id=? ORDER BY created_at DESC', 'invoice', invoice.id) };
+  return {
+    ...parse(doc),
+    ...fields,
+    proofs: store.all(
+      "SELECT id,status,note,created_at,amount,currency,reference FROM proofs WHERE kind=? AND reference_id=? ORDER BY created_at DESC",
+      "invoice",
+      invoice.id,
+    ),
+  };
 }
-export function nextBillingDate(value,period,anchorDay){
-  const next=new Date(value),day=anchorDay||next.getUTCDate();next.setUTCDate(1);
-  if(period==='yearly')next.setUTCFullYear(next.getUTCFullYear()+1);else next.setUTCMonth(next.getUTCMonth()+1);
-  const maximum=new Date(Date.UTC(next.getUTCFullYear(),next.getUTCMonth()+1,0)).getUTCDate();next.setUTCDate(Math.min(day,maximum));return next.toISOString();
+export function nextBillingDate(value, period, anchorDay) {
+  const next = new Date(value),
+    day = anchorDay || next.getUTCDate();
+  next.setUTCDate(1);
+  if (period === "yearly") next.setUTCFullYear(next.getUTCFullYear() + 1);
+  else next.setUTCMonth(next.getUTCMonth() + 1);
+  const maximum = new Date(
+    Date.UTC(next.getUTCFullYear(), next.getUTCMonth() + 1, 0),
+  ).getUTCDate();
+  next.setUTCDate(Math.min(day, maximum));
+  return next.toISOString();
 }
 export function sweep(store) {
   const timestamp = now();
-  store.run("UPDATE orders SET status='expired' WHERE status='awaiting_payment' AND expires_at<?", timestamp);
-  for (const row of store.all("SELECT * FROM bookings WHERE status='awaiting_payment'")) {
-    if (parse(row.doc).payBy < timestamp) store.run("UPDATE bookings SET status='expired' WHERE id=?", row.id);
+  store.run(
+    "UPDATE orders SET status='expired' WHERE status='awaiting_payment' AND expires_at<?",
+    timestamp,
+  );
+  for (const row of store.all(
+    "SELECT * FROM bookings WHERE status='awaiting_payment'",
+  )) {
+    if (parse(row.doc).payBy < timestamp)
+      store.run("UPDATE bookings SET status='expired' WHERE id=?", row.id);
   }
-  store.run('DELETE FROM sessions WHERE expires_at<?', timestamp);
-  store.run('DELETE FROM limits WHERE resets_at<?', Date.now() - 86400000);
-  if (!store.setting('billingEnabled', false)) return;
-  for (const row of store.all('SELECT id FROM tenants')) {
+  store.run("DELETE FROM sessions WHERE expires_at<?", timestamp);
+  store.run("DELETE FROM limits WHERE resets_at<?", Date.now() - 86400000);
+  if (!store.setting("billingEnabled", false)) return;
+  for (const row of store.all("SELECT id FROM tenants")) {
     const tenant = readTenant(store, row.id);
     const sub = tenant.billingPlan;
     if (!sub || !sub.nextIssueAt || sub.nextIssueAt > timestamp) continue;
-    const activated = store.setting('billingActivatedAt');
+    const activated = store.setting("billingActivatedAt");
     if (activated && sub.nextIssueAt < activated) sub.nextIssueAt = activated;
-    const plan = store.get('SELECT * FROM plans WHERE id=? AND active=1', sub.planId);
+    const plan = store.get(
+      "SELECT * FROM plans WHERE id=? AND active=1",
+      sub.planId,
+    );
     if (!plan) continue;
     store.tx(() => {
       const period = sub.nextIssueAt.slice(0, 10);
-      const due = new Date(sub.nextIssueAt); due.setUTCDate(due.getUTCDate() + (sub.graceDays || 7));
-      const id = uid('inv_');
-      store.run('INSERT OR IGNORE INTO invoices VALUES(?,?,?,?,?,?,?,?,?,?)', id, tenant.id, plan.amount === 0 ? 'paid' : 'unpaid', plan.amount, plan.currency, due.toISOString(), due.toISOString(), period, json({ title: `${plan.name} · ${period}`, planId: plan.id, features: parse(plan.features, []) }), timestamp);
+      const due = new Date(sub.nextIssueAt);
+      due.setUTCDate(due.getUTCDate() + (sub.graceDays || 7));
+      const id = uid("inv_");
+      store.run(
+        "INSERT OR IGNORE INTO invoices VALUES(?,?,?,?,?,?,?,?,?,?)",
+        id,
+        tenant.id,
+        plan.amount === 0 ? "paid" : "unpaid",
+        plan.amount,
+        plan.currency,
+        due.toISOString(),
+        due.toISOString(),
+        period,
+        json({
+          title: `${plan.name} · ${period}`,
+          planId: plan.id,
+          features: parse(plan.features, []),
+        }),
+        timestamp,
+      );
       tenant.billingPlan.anchorDay ||= new Date(sub.nextIssueAt).getUTCDate();
-      tenant.billingPlan.nextIssueAt = nextBillingDate(sub.nextIssueAt,plan.period,tenant.billingPlan.anchorDay); saveTenant(store, tenant);
-      store.audit(tenant.id, null, 'invoice.created', { invoiceId: id });
+      tenant.billingPlan.nextIssueAt = nextBillingDate(
+        sub.nextIssueAt,
+        plan.period,
+        tenant.billingPlan.anchorDay,
+      );
+      saveTenant(store, tenant);
+      store.audit(tenant.id, null, "invoice.created", { invoiceId: id });
     });
   }
 }
 
 export function metricsFor(store, tenantId) {
   const since = new Date(Date.now() - 30 * 86400000).toISOString();
-  const counts = store.get("SELECT COUNT(DISTINCT CASE WHEN kind='visit' THEN device END) AS visitors, COUNT(CASE WHEN kind='install' THEN 1 END) AS observedInstalls, COUNT(DISTINCT CASE WHEN kind='app_open' AND created_at>=? THEN device END) AS activeAppDevices FROM metrics WHERE tenant_id=?", since, tenantId);
-  const subs = store.get("SELECT COUNT(*) AS n FROM subscriptions WHERE tenant_id=? AND COALESCE(json_extract(payload,'$.publicEnabled'),CASE WHEN user_id IS NULL THEN 1 ELSE 0 END)=1", tenantId).n;
-  const bookings = store.get('SELECT COUNT(*) AS n FROM bookings WHERE tenant_id=?', tenantId).n;
-  const tickets = store.get('SELECT COUNT(*) AS n FROM tickets WHERE tenant_id=?', tenantId).n;
-  const daily = store.all("SELECT substr(created_at,1,10) AS date, COUNT(*) AS views FROM metrics WHERE tenant_id=? AND kind='visit' AND created_at>=? GROUP BY date ORDER BY date", tenantId, since);
-  const revenue = store.all("SELECT currency,SUM(amount) AS amount FROM proofs WHERE tenant_id=? AND status='approved' AND kind!='invoice' GROUP BY currency", tenantId);
+  const counts = store.get(
+    "SELECT COUNT(DISTINCT CASE WHEN kind='visit' THEN device END) AS visitors, COUNT(CASE WHEN kind='install' THEN 1 END) AS observedInstalls, COUNT(DISTINCT CASE WHEN kind='app_open' AND created_at>=? THEN device END) AS activeAppDevices FROM metrics WHERE tenant_id=?",
+    since,
+    tenantId,
+  );
+  const subs = store.get(
+    "SELECT COUNT(*) AS n FROM subscriptions WHERE tenant_id=? AND COALESCE(json_extract(payload,'$.publicEnabled'),CASE WHEN user_id IS NULL THEN 1 ELSE 0 END)=1",
+    tenantId,
+  ).n;
+  const bookings = store.get(
+    "SELECT COUNT(*) AS n FROM bookings WHERE tenant_id=?",
+    tenantId,
+  ).n;
+  const tickets = store.get(
+    "SELECT COUNT(*) AS n FROM tickets WHERE tenant_id=?",
+    tenantId,
+  ).n;
+  const daily = store.all(
+    "SELECT substr(created_at,1,10) AS date, COUNT(*) AS views FROM metrics WHERE tenant_id=? AND kind='visit' AND created_at>=? GROUP BY date ORDER BY date",
+    tenantId,
+    since,
+  );
+  const revenue = store.all(
+    "SELECT currency,SUM(amount) AS amount FROM proofs WHERE tenant_id=? AND status='approved' AND kind!='invoice' GROUP BY currency",
+    tenantId,
+  );
   return { ...counts, subscribers: subs, bookings, tickets, daily, revenue };
 }
