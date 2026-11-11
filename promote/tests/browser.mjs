@@ -11,10 +11,14 @@ const origin=`http://127.0.0.1:${server.address().port}`;
 const browser=await chromium.launch({channel:'msedge',headless:true});
 const context=await browser.newContext({viewport:{width:1440,height:1000}});
 const page=await context.newPage(),errors=[],checks=[];
+let outsiderContext;
 page.on('pageerror',error=>errors.push(error.message));
 const check=(name)=>{checks.push(name);console.log('PASS',name);};
 const noOverflow=async()=>{const result=await page.evaluate(()=>({width:innerWidth,scroll:document.documentElement.scrollWidth}));assert(result.scroll<=result.width+1,`Horizontal overflow ${JSON.stringify(result)}`);};
 try{
+  await page.goto(origin+'/admin/settings');await page.getByRole('heading',{name:'Good to have you back.'}).waitFor();assert.equal(new URL(page.url()).pathname,'/login');
+  assert.equal(await page.getByRole('button',{name:'Continue with Google'}).isDisabled(),true);assert.equal(await page.getByRole('button',{name:'Continue with Apple'}).isDisabled(),true);await page.getByText('Google and Apple sign-in are coming soon and are not connected yet.').waitFor();check('Login displays Google and Apple OAuth options without backend authentication');
+  await page.goto(origin+'/dashboard/mchenry/events');await page.getByRole('heading',{name:'Good to have you back.'}).waitFor();assert.equal(new URL(page.url()).pathname,'/login');check('Unauthenticated direct workspace URLs require sign-in');
   await page.goto(origin);await page.getByRole('heading',{name:/Your talent/}).waitFor();await noOverflow();
   await page.screenshot({path:'test-results/platform-desktop.png',fullPage:true});check('Platform landing and real directory render');
   await page.goto(origin+'/p/mchenry');await page.getByRole('heading',{name:/Good energy/}).waitFor();await noOverflow();
@@ -34,6 +38,13 @@ try{
   assert.equal(runtime.store.get('SELECT COUNT(*) AS n FROM bookings').n,1);check('Browser enquiry persists and opens a private tracking page');
   await page.goto(origin+'/setup');await page.getByLabel('Your name',{exact:true}).fill('Browser Admin');await page.getByLabel('Administrator email').fill('browser-admin@test.example');await page.getByLabel('Create a password').fill('Browser-test-strong-2026');await page.getByRole('button',{name:'Create administrator'}).click();
   await page.getByRole('heading',{name:'Good things are taking shape.'}).waitFor();await noOverflow();await page.screenshot({path:'test-results/techverse-desktop.png',fullPage:true});check('Administrator setup and central dashboard work');
+  const outsiderResponse=await fetch(origin+'/api/register',{method:'POST',headers:{'X-Promote-Request':'1','Content-Type':'application/json'},body:JSON.stringify({name:'Browser Outsider',email:'browser-outsider@test.example',password:'Browser-outsider-strong-2026',businessName:'Browser Outsider',slug:'browser-outsider',professions:['mc']})});
+  assert.equal(outsiderResponse.status,201,await outsiderResponse.text());
+  outsiderContext=await browser.newContext();const outsiderPage=await outsiderContext.newPage();outsiderPage.on('pageerror',error=>errors.push(error.message));
+  await outsiderPage.goto(origin+'/login?return=%2Fadmin%2Fsettings');await outsiderPage.getByLabel('Email address').fill('browser-outsider@test.example');await outsiderPage.getByLabel('Password').fill('Browser-outsider-strong-2026');await outsiderPage.getByRole('button',{name:'Open my workspace'}).click();await outsiderPage.getByRole('heading',{name:/Where are we/}).waitFor();
+  await outsiderPage.goto(origin+'/admin/settings');await outsiderPage.getByRole('heading',{name:/Where are we/}).waitFor();assert.equal(new URL(outsiderPage.url()).pathname,'/workspaces');
+  await outsiderPage.goto(origin+'/dashboard/mchenry/events');await outsiderPage.getByRole('heading',{name:/Where are we/}).waitFor();assert.equal(new URL(outsiderPage.url()).pathname,'/workspaces');check('Signed-in users cannot open another business or administrator workspace by URL');
+  await outsiderContext.close();outsiderContext=null;
   await page.goto(origin+'/dashboard/mchenry');await page.getByRole('heading',{name:/Hey Browser/}).waitFor();await noOverflow();await page.screenshot({path:'test-results/workspace-desktop.png',fullPage:true});check('Business dashboard shows its actual enquiry and statistics');
   await page.getByRole('link',{name:'My services',exact:true}).click();await page.getByRole('heading',{name:'Your services',exact:true}).waitFor();await page.getByRole('button',{name:'Add service',exact:true}).click();
   await page.getByLabel('Service name',{exact:true}).fill('Browser-created hosting service');
@@ -56,4 +67,4 @@ try{
   assert.deepEqual(errors,[]);check('No uncaught browser errors');
   writeFileSync('test-results/browser-report.json',JSON.stringify({passed:true,checks,errors},null,2));
 }catch(error){await page.screenshot({path:'test-results/browser-failure.png',fullPage:true}).catch(()=>{});writeFileSync('test-results/browser-report.json',JSON.stringify({passed:false,checks,errors,error:error.stack},null,2));throw error;}
-finally{await context.close();await browser.close();server.closeAllConnections();await new Promise(resolve=>server.close(resolve));runtime.close();}
+finally{await outsiderContext?.close();await context.close();await browser.close();server.closeAllConnections();await new Promise(resolve=>server.close(resolve));runtime.close();}

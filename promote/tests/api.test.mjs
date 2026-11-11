@@ -34,10 +34,14 @@ test('Promote: complete business, booking, payment, ticket and billing stories',
       r=await admin.request('/api/setup',{method:'POST',body:{name:'Techverse Test Admin',email:'admin@test.example',password:'Test-admin-strong-2026'}});assert.equal(r.status,201,JSON.stringify(r.data));
       r=await admin.request('/api/setup',{method:'POST',body:{}});assert.equal(r.status,409);
       r=await guest.request('/api/public/mchenry');assert.equal(r.status,200);assert.equal(r.data.services.length,3);assert.equal(r.data.events.length,0);assert.equal(r.data.business.paymentAccounts,undefined);
+      assert.equal((await guest.request('/api/business/mchenry/dashboard')).status,401);
+      assert.equal((await guest.request('/api/admin/overview')).status,403);
+      assert.equal((await admin.request('/api/admin/overview')).status,200);
     });
     await t.test('independent business creation and session separation',async()=>{
       const r=await dj.request('/api/register',{method:'POST',body:{name:'DJ Kulture',email:'dj@test.example',password:'Test-kulture-strong-2026',businessName:'DJ Kulture',slug:'djkulture',professions:['dj','organiser']}});assert.equal(r.status,201,JSON.stringify(r.data));
       const other=await dj.request('/api/business/mchenry/dashboard');assert.equal(other.status,403);
+      assert.equal((await dj.request('/api/admin/overview')).status,403);
       const list=await guest.request('/api/directory');assert.equal(list.data.businesses.length,1);
     });
     await t.test('receiving account configuration and enquiry creation',async()=>{
