@@ -44,21 +44,22 @@ try {
     await page
       .getByRole("button", { name: "Continue with Google" })
       .isDisabled(),
-    true,
+    false,
   );
   assert.equal(
-    await page
-      .getByRole("button", { name: "Continue with Apple" })
-      .isDisabled(),
-    true,
+    await page.getByRole("button", { name: "Continue with Apple" }).count(),
+    0,
   );
+  await page.getByRole("button", { name: "Continue with Google" }).click();
   await page
+    .getByRole("alert")
     .getByText(
-      "Google and Apple sign-in are coming soon and are not connected yet.",
+      "Google sign-in is not configured yet. Contact your administrator.",
     )
     .waitFor();
+  await page.getByRole("button", { name: "Reject optional" }).click();
   check(
-    "Login displays Google and Apple OAuth options without backend authentication",
+    "Login offers Google OAuth and reports when provider credentials are missing",
   );
   await page.goto(origin + "/dashboard/mchenry/events");
   await page.getByRole("heading", { name: "Good to have you back." }).waitFor();
