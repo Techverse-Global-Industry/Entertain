@@ -108,13 +108,11 @@ try {
       image.src.includes("/media/uploads/")
     );
   });
-  await page
-    .getByLabel("Cover image", { exact: true })
-    .setInputFiles({
-      name: "cover.png",
-      mimeType: "image/png",
-      buffer: sourceImage,
-    });
+  await page.getByLabel("Cover image", { exact: true }).setInputFiles({
+    name: "cover.png",
+    mimeType: "image/png",
+    buffer: sourceImage,
+  });
   await page
     .locator('[data-upload-label="Cover image"] .media-upload-success')
     .waitFor();
@@ -453,13 +451,11 @@ try {
     videoArray.length > 500,
     "The test fixture must contain real encoded video frames",
   );
-  await page
-    .getByLabel("Feature media", { exact: true })
-    .setInputFiles({
-      name: "partner-test.webm",
-      mimeType: "video/webm",
-      buffer: Buffer.from(videoArray),
-    });
+  await page.getByLabel("Feature media", { exact: true }).setInputFiles({
+    name: "partner-test.webm",
+    mimeType: "video/webm",
+    buffer: Buffer.from(videoArray),
+  });
   await page
     .locator('[data-upload-label="Feature media"] .media-upload-success')
     .waitFor();
