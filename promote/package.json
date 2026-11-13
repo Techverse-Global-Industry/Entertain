@@ -11,6 +11,7 @@
     "start": "node --env-file-if-exists=.env server/index.mjs",
     "test": "node --test --test-concurrency=1 tests/api.test.mjs tests/auth.test.mjs tests/hosting.test.mjs tests/professions.test.mjs tests/site-flow.test.mjs tests/cloud.test.mjs",
     "test:e2e": "node tests/browser.mjs",
+    "test:cookie-consent": "node tests/cookie-consent.browser.mjs",
     "test:experience": "node tests/experience.mjs",
     "setup": "node scripts/setup.mjs",
     "check": "node --check server/index.mjs && node --check server/core.mjs",

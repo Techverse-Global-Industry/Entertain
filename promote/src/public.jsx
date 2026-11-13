@@ -75,6 +75,7 @@ import {
   useRemote,
   useLive,
   useAction,
+  useCookieConsent,
   Brand,
   Button,
   Field,
@@ -162,7 +163,8 @@ function PublicNav() {
   );
 }
 export function SiteFooter() {
-  const { bootstrap } = useSession();
+  const { bootstrap } = useSession(),
+    { openCookieSettings } = useCookieConsent();
   return (
     <footer className="site-footer">
       <div className="container site-footer-inner">
@@ -185,6 +187,9 @@ export function SiteFooter() {
         <div className="site-footer-bottom">
           <span>© {new Date().getFullYear()} Techverse Global</span>
           <span>Made for people building what comes next.</span>
+          <button type="button" onClick={openCookieSettings}>
+            Cookie settings
+          </button>
         </div>
       </div>
     </footer>
