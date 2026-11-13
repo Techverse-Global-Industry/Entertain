@@ -544,15 +544,13 @@ export function publicRoutes(app, ctx) {
       req.params.code,
     );
     fail(ticket && order.status === "confirmed", 404, "Ticket not found.");
-    res
-      .type("png")
-      .send(
-        await QRCode.toBuffer(`PROMOTE:${req.params.code}`, {
-          width: 360,
-          margin: 2,
-          errorCorrectionLevel: "M",
-        }),
-      );
+    res.type("png").send(
+      await QRCode.toBuffer(`PROMOTE:${req.params.code}`, {
+        width: 360,
+        margin: 2,
+        errorCorrectionLevel: "M",
+      }),
+    );
   });
   app.post(
     "/api/guest/:kind/:id/proof",
