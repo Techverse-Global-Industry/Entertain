@@ -21,6 +21,7 @@ import {
   InvitePage,
   SetupPage,
   WorkspacePicker,
+  SiteFooter,
 } from "./public";
 import "./styles.css";
 import "./themes.css";
@@ -147,6 +148,7 @@ createRoot(document.getElementById("root")).render(
     <BrowserRouter>
       <Providers>
         <AppRoutes />
+        <SiteFooter />
       </Providers>
     </BrowserRouter>
   </Boundary>,

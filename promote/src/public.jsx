@@ -161,14 +161,31 @@ function PublicNav() {
     </header>
   );
 }
-function Footer() {
+export function SiteFooter() {
+  const { bootstrap } = useSession();
   return (
-    <footer className="site-footer container">
-      <Brand small />
-      <span>A little more you. A lot more possible.</span>
-      <div>
-        <Link to="/login">Workspace login</Link>
-        <span>© {new Date().getFullYear()} Techverse</span>
+    <footer className="site-footer">
+      <div className="container site-footer-inner">
+        <div className="site-footer-brand">
+          <Brand small />
+          <p>A little more you. A lot more possible.</p>
+        </div>
+        <nav className="site-footer-links" aria-label="Public links">
+          <Link to="/">Home</Link>
+          <Link to="/#how-it-works">How it works</Link>
+          {bootstrap?.directoryEnabled && (
+            <Link to="/discover">Discover talent</Link>
+          )}
+          <Link to="/#built-for-you">Made for you</Link>
+          {bootstrap?.registrationEnabled && (
+            <Link to="/join">Create your space</Link>
+          )}
+          <Link to="/login">Sign in</Link>
+        </nav>
+        <div className="site-footer-bottom">
+          <span>© {new Date().getFullYear()} Techverse Global</span>
+          <span>Made for people building what comes next.</span>
+        </div>
       </div>
     </footer>
   );
@@ -529,7 +546,6 @@ export function Platform({ discover = false }) {
           </Empty>
         </section>
       )}
-      <Footer />
     </div>
   );
 }

@@ -1187,31 +1187,56 @@ code {
   border-color: #c8dfa9;
 }
 .site-footer {
+  margin-top: 0;
   border-top: 1px solid #dfe4d6;
-  padding-top: 26px;
-  padding-bottom: 28px;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 24px;
+  background: #f5f5ef;
+  color: #202621;
 }
-.site-footer > .brand .brand-word {
+.site-footer-inner {
+  display: grid;
+  grid-template-columns: minmax(200px, 1fr) 2fr;
+  align-items: center;
+  gap: 28px 36px;
+  padding-top: 30px;
+  padding-bottom: 22px;
+}
+.site-footer-brand p {
+  margin: 8px 0 0;
+  color: #778078;
+  font-size: 11px;
+}
+.site-footer-brand > .brand .brand-word {
   font-size: 23px;
 }
-.site-footer > .brand .brand-mark {
+.site-footer-brand > .brand .brand-mark {
   font-size: 38px;
   width: 33px;
 }
-.site-footer > span {
-  font-size: 10px;
-  color: #95a083;
-}
-.site-footer > div {
+.site-footer-links {
   display: flex;
   align-items: center;
-  gap: 25px;
-  font-size: 9px;
+  justify-content: flex-end;
+  flex-wrap: wrap;
+  gap: 12px 24px;
+  font-size: 11px;
+  font-weight: 600;
+}
+.site-footer-links a:hover {
+  color: #6b8744;
+}
+.site-footer-links a:focus-visible {
+  outline: 2px solid #6b8744;
+  outline-offset: 4px;
+}
+.site-footer-bottom {
+  grid-column: 1 / -1;
+  display: flex;
+  justify-content: space-between;
+  gap: 15px;
+  padding-top: 16px;
+  border-top: 1px solid #dfe4d6;
   color: #879376;
+  font-size: 10px;
 }
 /* The creator’s website */
 .artist-site {
@@ -5121,9 +5146,6 @@ td .btn {
     font-size: 9px;
     padding: 12px 14px;
   }
-  .site-footer > span {
-    display: none;
-  }
   .artist-header nav {
     display: none;
   }
@@ -5488,16 +5510,26 @@ td .btn {
     font-size: 10px;
   }
   .site-footer {
-    padding-block: 25px;
-    gap: 15px;
+    padding-block: 0;
   }
-  .site-footer > div {
+  .site-footer-inner {
+    grid-template-columns: 1fr;
+    gap: 20px;
+    padding-top: 25px;
+  }
+  .site-footer-links {
     flex-direction: column;
-    align-items: end;
-    gap: 8px;
-    font-size: 8px;
+    align-items: flex-start;
+    justify-content: flex-start;
+    gap: 12px;
   }
-  .site-footer > .brand .brand-word {
+  .site-footer-bottom {
+    grid-column: 1;
+    flex-direction: column;
+    gap: 8px;
+    font-size: 9px;
+  }
+  .site-footer-brand > .brand .brand-word {
     font-size: 21px;
   }
   .full-discover .section-top h2 {
