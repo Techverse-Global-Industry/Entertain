@@ -12,7 +12,6 @@ import {
   ArrowRight,
   ArrowUpRight,
   ArrowLeft,
-  Apple,
   Sparkles,
   MapPin,
   CalendarDays,
@@ -1935,6 +1934,7 @@ export function LoginPage() {
     [params] = useSearchParams(),
     navigate = useNavigate(),
     action = useAction();
+  const [googleError, setGoogleError] = useState("");
   const business = params.get("business");
   const googleAuthEnabled = Boolean(session.bootstrap?.googleAuthEnabled);
   const googleReturn =
@@ -2004,8 +2004,14 @@ export function LoginPage() {
         <button
           className="oauth-option"
           type="button"
-          disabled={!googleAuthEnabled}
           onClick={() => {
+            setGoogleError("");
+            if (!googleAuthEnabled) {
+              setGoogleError(
+                "Google sign-in is not configured yet. Contact your administrator.",
+              );
+              return;
+            }
             const url = new URL("/api/auth/google", window.location.origin);
             url.searchParams.set("return", googleReturn);
             window.location.assign(url);
@@ -2016,18 +2022,19 @@ export function LoginPage() {
           </span>
           Continue with Google
         </button>
-        <button className="oauth-option" type="button" disabled>
-          <Apple size={18} aria-hidden="true" />
-          Continue with Apple
-        </button>
       </div>
       <p className="oauth-notice">
         {params.get("oauth") === "cancelled"
           ? "Google sign-in was cancelled. You can try again."
           : googleAuthEnabled
-            ? "Apple sign-in is coming soon."
-            : "Google sign-in is not configured yet. Contact your administrator."}
+            ? "Continue securely with your Google account."
+            : "Google sign-in is currently unavailable."}
       </p>
+      {googleError && (
+        <p className="form-error" role="alert">
+          {googleError}
+        </p>
+      )}
       <p className="auth-alt">
         New here? <Link to="/join">Create your space</Link>
       </p>

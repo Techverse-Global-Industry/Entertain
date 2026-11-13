@@ -2570,7 +2570,7 @@ code {
 }
 .oauth-options {
   display: grid;
-  grid-template-columns: 1fr 1fr;
+  grid-template-columns: minmax(0, 1fr);
   gap: 10px;
 }
 .oauth-option {
@@ -2588,9 +2588,9 @@ code {
     600 11px "DM Sans",
     sans-serif;
 }
-.oauth-option:disabled {
-  cursor: not-allowed;
-  opacity: 0.72;
+.oauth-option:hover {
+  border-color: #b7c5a5;
+  background: #fbfcf8;
 }
 .oauth-google-mark {
   font-size: 17px;
