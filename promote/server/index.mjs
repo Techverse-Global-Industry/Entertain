@@ -1,4 +1,5 @@
 import express from "express";
+import { createHash, timingSafeEqual } from "node:crypto";
 import { cloudUploadTools } from "./cloud-uploads.mjs";
 import helmet from "helmet";
 import multer from "multer";
@@ -40,12 +41,42 @@ import { netlifyProxyPolicy, netlifyPublicHost } from "./netlify-proxy.mjs";
 import { ensureProfessionalDefaults } from "./professional-data.mjs";
 import { professionalRoutes } from "./professional-routes.mjs";
 import { deliveryRoutes } from "./delivery-routes.mjs";
+import { createSessionJwt, verifySessionJwt } from "./auth.mjs";
 
 export const root = process.env.LAMBDA_TASK_ROOT
   ? existsSync(join(process.env.LAMBDA_TASK_ROOT, "promote", "public"))
     ? join(process.env.LAMBDA_TASK_ROOT, "promote")
     : resolve(process.env.LAMBDA_TASK_ROOT)
   : resolve(dirname(fileURLToPath(import.meta.url)), "..");
+const requestCookie = (req, name) =>
+  (req.headers.cookie || "")
+    .split(";")
+    .map((value) => value.trim())
+    .find((value) => value.startsWith(`${name}=`))
+    ?.slice(name.length + 1);
+const constantTimeEqual = (left, right) => {
+  if (typeof left !== "string" || typeof right !== "string") return false;
+  const a = Buffer.from(left || ""),
+    b = Buffer.from(right || "");
+  return a.length === b.length && timingSafeEqual(a, b);
+};
+const safeLocalRedirect = (value) => {
+  if (
+    typeof value !== "string" ||
+    value.length > 1024 ||
+    !value.startsWith("/") ||
+    /[\r\n\\]/.test(value)
+  )
+    return "/workspaces";
+  try {
+    const target = new URL(value, "https://promote.invalid");
+    return target.origin === "https://promote.invalid"
+      ? `${target.pathname}${target.search}${target.hash}`
+      : "/workspaces";
+  } catch {
+    return "/workspaces";
+  }
+};
 export function prepareAssets() {
   const directory = join(root, "public", "media");
   mkdirSync(directory, { recursive: true });
@@ -70,9 +101,66 @@ export function createApp(options = {}) {
   if (options.seed !== false) seedTenant(store);
   ensureProfessionalDefaults(store);
   ensureKeys(store);
+  const configuredJwtSecret = process.env.JWT_SECRET;
+  if (
+    configuredJwtSecret &&
+    Buffer.byteLength(configuredJwtSecret, "utf8") < 32
+  )
+    throw new Error("JWT_SECRET must be at least 32 bytes.");
+  const sessionSigningKey =
+    configuredJwtSecret || store.setting("sessionSigningKey") || secret();
+  if (!configuredJwtSecret && !store.setting("sessionSigningKey"))
+    store.setSetting("sessionSigningKey", sessionSigningKey);
+  const googleOAuth = options.googleOAuthConfig || {
+    clientId: process.env.GOOGLE_CLIENT_ID,
+    clientSecret: process.env.GOOGLE_CLIENT_SECRET,
+    redirectUri: process.env.GOOGLE_REDIRECT_URI,
+  };
+  const googleFetch = options.googleFetch || fetch;
   if (!store.cloud) prepareAssets();
   const app = express();
   const production = process.env.NODE_ENV === "production";
+  const googleAuthEnabled = (() => {
+    if (
+      !googleOAuth.clientId ||
+      !googleOAuth.clientSecret ||
+      !googleOAuth.redirectUri
+    )
+      return false;
+    try {
+      const redirect = new URL(googleOAuth.redirectUri);
+      return (
+        redirect.pathname === "/api/auth/google/callback" &&
+        !redirect.search &&
+        !redirect.hash &&
+        (!production || redirect.protocol === "https:")
+      );
+    } catch {
+      return false;
+    }
+  })();
+  const googleConfiguration = () => {
+    fail(googleAuthEnabled, 503, "Google sign-in is not configured.");
+    let redirect;
+    try {
+      redirect = new URL(googleOAuth.redirectUri);
+    } catch {
+      fail(false, 503, "Google sign-in has an invalid redirect URI.");
+    }
+    fail(
+      redirect.pathname === "/api/auth/google/callback" &&
+        !redirect.search &&
+        !redirect.hash &&
+        (!production || redirect.protocol === "https:"),
+      503,
+      "Google sign-in has an invalid redirect URI.",
+    );
+    return {
+      clientId: googleOAuth.clientId,
+      clientSecret: googleOAuth.clientSecret,
+      redirectUri: redirect.toString(),
+    };
+  };
   if (process.env.TRUST_PROXY === "1") app.set("trust proxy", 1);
   app.disable("x-powered-by");
   if (store.cloud) {
@@ -132,15 +220,15 @@ export function createApp(options = {}) {
         }
       }
     }
-    const cookie = /(?:^|;\s*)promote_session=([^;]+)/.exec(
-      req.headers.cookie || "",
-    )?.[1];
-    req.sessionHash = cookie ? hash(cookie) : null;
-    req.user = cookie
+    const cookie = requestCookie(req, "promote_session"),
+      claims = cookie ? verifySessionJwt(cookie, sessionSigningKey) : null;
+    req.sessionHash = claims ? hash(cookie) : null;
+    req.user = claims
       ? store.get(
-          "SELECT u.id,u.email,u.name,u.role FROM sessions s JOIN users u ON s.user_id=u.id WHERE s.token=? AND s.expires_at>?",
+          "SELECT u.id,u.email,u.name,u.role FROM sessions s JOIN users u ON s.user_id=u.id WHERE s.token=? AND s.expires_at>? AND u.id=?",
           hash(cookie),
           now(),
+          claims.sub,
         )
       : null;
     const base = (process.env.BASE_DOMAIN || "localhost").toLowerCase();
@@ -251,16 +339,15 @@ export function createApp(options = {}) {
     }
   };
   const logIn = (req, res, user) => {
-    const token = secret(),
-      old = /(?:^|;\s*)promote_session=([^;]+)/.exec(
-        req.headers.cookie || "",
-      )?.[1];
+    const issuedAt = Math.floor(Date.now() / 1000),
+      token = createSessionJwt(user.id, sessionSigningKey, issuedAt),
+      old = requestCookie(req, "promote_session");
     if (old) store.run("DELETE FROM sessions WHERE token=?", hash(old));
     store.run(
       "INSERT INTO sessions VALUES(?,?,?)",
       hash(token),
       user.id,
-      new Date(Date.now() + 7 * 86400000).toISOString(),
+      new Date((issuedAt + 7 * 86400) * 1000).toISOString(),
     );
     res.cookie("promote_session", token, {
       httpOnly: true,
@@ -486,6 +573,7 @@ export function createApp(options = {}) {
       requireTenantHost: production && process.env.TENANT_ROUTING !== "path",
       directoryEnabled: store.setting("directoryEnabled", true),
       registrationEnabled: store.setting("publicRegistration", true),
+      googleAuthEnabled,
       tenant: req.tenant
         ? { slug: req.tenant.slug, name: req.tenant.name }
         : null,
@@ -559,10 +647,186 @@ export function createApp(options = {}) {
       },
     });
   });
+  const oauthCookieOptions = {
+    httpOnly: true,
+    sameSite: "lax",
+    secure: production,
+    path: "/api/auth/google",
+    maxAge: 10 * 60000,
+  };
+  const clearOAuthCookies = (res) => {
+    for (const name of [
+      "promote_oauth_state",
+      "promote_oauth_nonce",
+      "promote_oauth_verifier",
+      "promote_oauth_return",
+    ])
+      res.clearCookie(name, {
+        httpOnly: true,
+        sameSite: "lax",
+        secure: production,
+        path: "/api/auth/google",
+      });
+  };
+  app.get("/api/auth/google", (req, res) => {
+    limited(req, "login", 15, 15 * 60000);
+    const config = googleConfiguration(),
+      state = secret(),
+      nonce = secret(),
+      verifier = secret(),
+      requestedReturn = safeLocalRedirect(req.query.return),
+      authorization = new URL("https://accounts.google.com/o/oauth2/v2/auth");
+    authorization.search = new URLSearchParams({
+      client_id: config.clientId,
+      redirect_uri: config.redirectUri,
+      response_type: "code",
+      scope: "openid email profile",
+      state,
+      nonce,
+      code_challenge: createHash("sha256")
+        .update(verifier)
+        .digest("base64url"),
+      code_challenge_method: "S256",
+    }).toString();
+    res.cookie("promote_oauth_state", state, oauthCookieOptions);
+    res.cookie("promote_oauth_nonce", nonce, oauthCookieOptions);
+    res.cookie("promote_oauth_verifier", verifier, oauthCookieOptions);
+    res.cookie(
+      "promote_oauth_return",
+      requestedReturn,
+      oauthCookieOptions,
+    );
+    res.redirect(302, authorization.toString());
+  });
+  app.get("/api/auth/google/callback", async (req, res) => {
+    limited(req, "login", 15, 15 * 60000);
+    const config = googleConfiguration(),
+      stateCookie = requestCookie(req, "promote_oauth_state"),
+      nonce = requestCookie(req, "promote_oauth_nonce"),
+      verifier = requestCookie(req, "promote_oauth_verifier"),
+      returnCookie = requestCookie(req, "promote_oauth_return");
+    clearOAuthCookies(res);
+    fail(
+      typeof req.query.state === "string" &&
+        stateCookie &&
+        constantTimeEqual(req.query.state, stateCookie) &&
+        nonce &&
+        verifier,
+      403,
+      "Google sign-in could not be verified. Please try again.",
+    );
+    if (typeof req.query.error === "string")
+      return res.redirect(303, "/login?oauth=cancelled");
+    fail(
+      typeof req.query.code === "string" && req.query.code.length <= 2048,
+      400,
+      "Google did not return an authorization code.",
+    );
+    let tokenResponse;
+    try {
+      tokenResponse = await googleFetch(
+        "https://oauth2.googleapis.com/token",
+        {
+          method: "POST",
+          headers: { "content-type": "application/x-www-form-urlencoded" },
+          body: new URLSearchParams({
+            code: req.query.code,
+            client_id: config.clientId,
+            client_secret: config.clientSecret,
+            redirect_uri: config.redirectUri,
+            grant_type: "authorization_code",
+            code_verifier: verifier,
+          }),
+          signal: AbortSignal.timeout(10000),
+        },
+      );
+    } catch {
+      throw new AppError(502, "Google sign-in is temporarily unavailable.");
+    }
+    const tokenBody = await tokenResponse.json().catch(() => null);
+    fail(
+      tokenResponse.ok &&
+        typeof tokenBody?.id_token === "string" &&
+        tokenBody.id_token.length <= 8192,
+      401,
+      "Google could not verify this sign-in.",
+    );
+    let identityResponse;
+    try {
+      const identityUrl = new URL("https://oauth2.googleapis.com/tokeninfo");
+      identityUrl.searchParams.set("id_token", tokenBody.id_token);
+      identityResponse = await googleFetch(identityUrl, {
+        signal: AbortSignal.timeout(10000),
+      });
+    } catch {
+      throw new AppError(502, "Google sign-in is temporarily unavailable.");
+    }
+    const identity = await identityResponse.json().catch(() => null),
+      verifiedEmail =
+        identity?.email_verified === true ||
+        identity?.email_verified === "true",
+      expiresAt = Number(identity?.exp),
+      email = z.email().safeParse(identity?.email);
+    fail(
+      identityResponse.ok &&
+        identity?.aud === config.clientId &&
+        ["accounts.google.com", "https://accounts.google.com"].includes(
+          identity?.iss,
+        ) &&
+        constantTimeEqual(identity?.nonce, nonce) &&
+        Number.isFinite(expiresAt) &&
+        expiresAt > Date.now() / 1000 &&
+        typeof identity?.sub === "string" &&
+        identity.sub.length > 0 &&
+        verifiedEmail &&
+        email.success,
+      401,
+      "Google could not verify this sign-in.",
+    );
+    const normalizedEmail = email.data.toLowerCase(),
+      user =
+        store.get("SELECT * FROM users WHERE email=?", normalizedEmail) ||
+        null;
+    let account = user;
+    if (!account) {
+      fail(
+        store.setting("publicRegistration", true),
+        403,
+        "Contact Techverse to create a business account.",
+      );
+      fail(
+        store.get("SELECT id FROM users WHERE role='admin'"),
+        409,
+        "Techverse needs to complete initial setup first.",
+      );
+      const name =
+        typeof identity.name === "string" && identity.name.trim()
+          ? identity.name.trim().slice(0, 100)
+          : normalizedEmail.split("@")[0];
+      account = await createUser(store, {
+        email: normalizedEmail,
+        name,
+        password: secret(),
+      });
+      store.audit(null, account.id, "account.created.google");
+    }
+    if (req.tenant)
+      fail(
+        memberOf(store, account, req.tenant.id),
+        403,
+        "This account does not have access to this business.",
+      );
+    logIn(req, res, account);
+    let returnTo = "/workspaces";
+    try {
+      returnTo = safeLocalRedirect(decodeURIComponent(returnCookie || ""));
+    } catch {
+      returnTo = "/workspaces";
+    }
+    res.redirect(303, returnTo);
+  });
   app.post("/api/auth/logout", (req, res) => {
-    const cookie = /(?:^|;\s*)promote_session=([^;]+)/.exec(
-      req.headers.cookie || "",
-    )?.[1];
+    const cookie = requestCookie(req, "promote_session");
     if (cookie) store.run("DELETE FROM sessions WHERE token=?", hash(cookie));
     if (req.user)
       for (const sub of store.all(

@@ -1915,6 +1915,14 @@ export function LoginPage() {
     navigate = useNavigate(),
     action = useAction();
   const business = params.get("business");
+  const googleAuthEnabled = Boolean(session.bootstrap?.googleAuthEnabled);
+  const googleReturn =
+    params.get("return")?.startsWith("/") &&
+    !params.get("return")?.startsWith("//")
+      ? params.get("return")
+      : business
+        ? `/dashboard/${encodeURIComponent(business)}`
+        : "/workspaces";
   const submit = (e) => {
     e.preventDefault();
     const form = new FormData(e.currentTarget);
@@ -1972,7 +1980,16 @@ export function LoginPage() {
         <span>OR CONTINUE WITH</span>
       </div>
       <div className="oauth-options">
-        <button className="oauth-option" type="button" disabled>
+        <button
+          className="oauth-option"
+          type="button"
+          disabled={!googleAuthEnabled}
+          onClick={() => {
+            const url = new URL("/api/auth/google", window.location.origin);
+            url.searchParams.set("return", googleReturn);
+            window.location.assign(url);
+          }}
+        >
           <span className="oauth-google-mark" aria-hidden="true">
             G
           </span>
@@ -1984,7 +2001,11 @@ export function LoginPage() {
         </button>
       </div>
       <p className="oauth-notice">
-        Google and Apple sign-in are coming soon and are not connected yet.
+        {params.get("oauth") === "cancelled"
+          ? "Google sign-in was cancelled. You can try again."
+          : googleAuthEnabled
+            ? "Apple sign-in is coming soon."
+            : "Google sign-in is not configured yet. Contact your administrator."}
       </p>
       <p className="auth-alt">
         New here? <Link to="/join">Create your space</Link>

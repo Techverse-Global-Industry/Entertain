@@ -27,6 +27,10 @@ Set these through the Netlify project's environment settings. On Netlify Free, o
 | SUPABASE_URL | Project HTTPS API origin |
 | SUPABASE_SERVICE_ROLE_KEY | Server-only Storage credential |
 | APP_URL | Public HTTPS website origin |
+| GOOGLE_CLIENT_ID | Google OAuth web client ID |
+| GOOGLE_CLIENT_SECRET | Server-only Google OAuth client secret |
+| GOOGLE_REDIRECT_URI | Exact HTTPS callback URL ending in `/api/auth/google/callback` |
+| JWT_SECRET | Optional stable secret of at least 32 bytes; rotating it signs out users |
 | BASE_DOMAIN | Website hostname without scheme or path |
 | TENANT_ROUTING | path for the initial Netlify address |
 | NODE_ENV | production |
@@ -35,6 +39,8 @@ Set these through the Netlify project's environment settings. On Netlify Free, o
 | AWS_LAMBDA_JS_RUNTIME | nodejs24.x; configure through Netlify, not TOML |
 
 The Supabase extension's SUPABASE_DATABASE_URL is also accepted as the API origin. Use Other with no public variable prefix. Never use a VITE_ prefix for credentials. Postgres TLS verifies the certificate and hostname. Set DATABASE_SSL_CA to the full PEM certificate from Supabase Database settings. The verified Supabase Studio download is https://supabase-downloads.s3-ap-southeast-1.amazonaws.com/prod/ssl/prod-ca-2021.crt. Keep certificate verification enabled.
+
+To enable Google sign-in, create a Google OAuth web client, add the exact `GOOGLE_REDIRECT_URI` value to its authorized redirect URIs, and configure all three Google variables above for Netlify Functions. The redirect URI must use HTTPS in production. Session cookies are signed JWTs and remain revocable through the private database; if `JWT_SECRET` is omitted, the application creates and stores a signing key in that database. Configure `JWT_SECRET` as a stable, private value of at least 32 bytes across all deployments if you want to manage key rotation explicitly.
 
 The private schema enables RLS and grants no browser access. Only the private backend role accesses records; the API enforces tenant, staff, guest-link and global-administrator permissions.
 
