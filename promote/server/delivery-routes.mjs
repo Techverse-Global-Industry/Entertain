@@ -223,15 +223,13 @@ export function deliveryRoutes(app, ctx) {
           } catch {}
         throw error;
       }
-      res
-        .status(201)
-        .json({
-          id,
-          name,
-          mime,
-          size: file.buffer.length,
-          url: `/api/business/${t.slug}/delivery-assets/${id}`,
-        });
+      res.status(201).json({
+        id,
+        name,
+        mime,
+        size: file.buffer.length,
+        url: `/api/business/${t.slug}/delivery-assets/${id}`,
+      });
     },
   );
   app.get("/api/business/:slug/delivery-assets/:assetId", auth, (req, res) => {
@@ -311,12 +309,10 @@ export function deliveryRoutes(app, ctx) {
           );
         }
         store.audit(t.id, req.user.id, "delivery.saved", { id });
-        res
-          .status(method === "post" ? 201 : 200)
-          .json({
-            id,
-            ...(token ? { sharePath: `/delivery/${id}#${token}` } : {}),
-          });
+        res.status(method === "post" ? 201 : 200).json({
+          id,
+          ...(token ? { sharePath: `/delivery/${id}#${token}` } : {}),
+        });
       },
     );
   app.post("/api/business/:slug/deliveries/:id/link", auth, (req, res) => {
