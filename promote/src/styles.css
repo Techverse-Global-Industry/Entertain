@@ -1187,31 +1187,149 @@ code {
   border-color: #c8dfa9;
 }
 .site-footer {
+  margin-top: 0;
   border-top: 1px solid #dfe4d6;
-  padding-top: 26px;
-  padding-bottom: 28px;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 24px;
+  background: #f5f5ef;
+  color: #202621;
 }
-.site-footer > .brand .brand-word {
+.site-footer-inner {
+  display: grid;
+  grid-template-columns: minmax(200px, 1fr) 2fr;
+  align-items: center;
+  gap: 28px 36px;
+  padding-top: 30px;
+  padding-bottom: 22px;
+}
+.site-footer-brand p {
+  margin: 8px 0 0;
+  color: #778078;
+  font-size: 11px;
+}
+.site-footer-brand > .brand .brand-word {
   font-size: 23px;
 }
-.site-footer > .brand .brand-mark {
+.site-footer-brand > .brand .brand-mark {
   font-size: 38px;
   width: 33px;
 }
-.site-footer > span {
-  font-size: 10px;
-  color: #95a083;
-}
-.site-footer > div {
+.site-footer-links {
   display: flex;
   align-items: center;
-  gap: 25px;
-  font-size: 9px;
+  justify-content: flex-end;
+  flex-wrap: wrap;
+  gap: 12px 24px;
+  font-size: 11px;
+  font-weight: 600;
+}
+.site-footer-links a:hover {
+  color: #6b8744;
+}
+.site-footer-links a:focus-visible {
+  outline: 2px solid #6b8744;
+  outline-offset: 4px;
+}
+.site-footer-bottom {
+  grid-column: 1 / -1;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 15px;
+  padding-top: 16px;
+  border-top: 1px solid #dfe4d6;
   color: #879376;
+  font-size: 10px;
+}
+.site-footer-bottom button {
+  padding: 3px 0;
+  color: #42543b;
+  font-size: inherit;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+.cookie-notice {
+  position: fixed;
+  z-index: 300;
+  left: 50%;
+  bottom: 20px;
+  width: min(920px, calc(100% - 32px));
+  max-height: min(85vh, 680px);
+  overflow: auto;
+  transform: translateX(-50%);
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: end;
+  gap: 22px 30px;
+  padding: 26px 28px;
+  border: 1px solid #dfe4d6;
+  border-radius: 14px;
+  background: #fff;
+  color: #202621;
+  box-shadow: 0 18px 60px #101c1940;
+}
+.cookie-notice-copy > .eyebrow {
+  color: #71884e;
+}
+.cookie-notice h2 {
+  margin: 8px 0 7px;
+  font-family: "Space Grotesk", sans-serif;
+  font-size: 22px;
+  letter-spacing: -0.5px;
+}
+.cookie-notice-copy > p {
+  max-width: 650px;
+  margin: 0;
+  color: #626d63;
+  font-size: 12px;
+  line-height: 1.65;
+}
+.cookie-notice-details {
+  display: grid;
+  gap: 8px;
+  margin: 13px 0 0;
+  padding-left: 19px;
+  color: #626d63;
+  font-size: 11px;
+  line-height: 1.6;
+}
+.cookie-notice-details strong {
+  color: #202621;
+}
+.cookie-notice-details code {
+  color: #40563b;
+}
+.cookie-notice-details-toggle {
+  margin-top: 12px;
+  padding: 0;
+  color: #42543b;
+  font-size: 11px;
+  font-weight: 700;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+.cookie-notice-error {
+  margin-top: 10px !important;
+  color: #a1382d !important;
+}
+.cookie-notice-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 9px;
+  min-width: 175px;
+}
+.cookie-notice-actions .btn {
+  width: 100%;
+  min-height: 40px;
+  justify-content: center;
+  font-size: 11px;
+}
+.cookie-notice-actions .btn-outline {
+  border: 1px solid #dfe4d6;
+  background: #fff;
+}
+.cookie-notice button:focus-visible,
+.site-footer-bottom button:focus-visible {
+  outline: 2px solid #6b8744;
+  outline-offset: 3px;
 }
 /* The creator’s website */
 .artist-site {
@@ -5121,9 +5239,6 @@ td .btn {
     font-size: 9px;
     padding: 12px 14px;
   }
-  .site-footer > span {
-    display: none;
-  }
   .artist-header nav {
     display: none;
   }
@@ -5488,16 +5603,41 @@ td .btn {
     font-size: 10px;
   }
   .site-footer {
-    padding-block: 25px;
-    gap: 15px;
+    padding-block: 0;
   }
-  .site-footer > div {
+  .cookie-notice {
+    bottom: 10px;
+    grid-template-columns: 1fr;
+    gap: 16px;
+    padding: 20px;
+  }
+  .cookie-notice-actions {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    min-width: 0;
+  }
+  .cookie-notice-actions .btn {
+    padding-inline: 8px;
+    font-size: 10px;
+  }
+  .site-footer-inner {
+    grid-template-columns: 1fr;
+    gap: 20px;
+    padding-top: 25px;
+  }
+  .site-footer-links {
     flex-direction: column;
-    align-items: end;
-    gap: 8px;
-    font-size: 8px;
+    align-items: flex-start;
+    justify-content: flex-start;
+    gap: 12px;
   }
-  .site-footer > .brand .brand-word {
+  .site-footer-bottom {
+    grid-column: 1;
+    flex-direction: column;
+    gap: 8px;
+    font-size: 9px;
+  }
+  .site-footer-brand > .brand .brand-word {
     font-size: 21px;
   }
   .full-discover .section-top h2 {

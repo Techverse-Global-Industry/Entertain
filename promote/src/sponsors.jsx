@@ -40,6 +40,7 @@ import {
   date,
   datetime,
   localDate,
+  hasAnalyticsConsent,
 } from "./lib";
 import { themeStyle } from "../shared/theme.mjs";
 
@@ -56,6 +57,7 @@ function device() {
   }
 }
 function track(b, c, kind) {
+  if (!hasAnalyticsConsent()) return;
   const id = device();
   if (id && c?.id)
     api(`/api/public/${b.slug}/sponsors/${c.id}/activity`, {

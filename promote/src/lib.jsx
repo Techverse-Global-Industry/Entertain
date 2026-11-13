@@ -63,7 +63,107 @@ export async function api(path, options = {}) {
 }
 const SessionContext = createContext(null),
   ToastContext = createContext(null),
-  InstallContext = createContext(null);
+  InstallContext = createContext(null),
+  CookieConsentContext = createContext(null);
+const cookieConsentKey = "promote.cookie-consent.v1";
+export const hasAnalyticsConsent = () => {
+  try {
+    return localStorage.getItem(cookieConsentKey) === "accepted";
+  } catch {
+    return false;
+  }
+};
+function CookieNotice() {
+  const {
+    cookieConsent,
+    cookieSettingsOpen,
+    chooseCookieConsent,
+    closeCookieSettings,
+    cookieStorageError,
+  } = useCookieConsent();
+  const [detailsOpen, setDetailsOpen] = useState(false);
+  const visible = cookieConsent === null || cookieSettingsOpen;
+  if (!visible) return null;
+  return (
+    <section
+      className="cookie-notice"
+      role="dialog"
+      aria-modal="false"
+      aria-labelledby="cookie-notice-title"
+      aria-describedby="cookie-notice-description"
+    >
+      <div className="cookie-notice-copy">
+        <span className="eyebrow">YOUR PRIVACY</span>
+        <h2 id="cookie-notice-title">Your cookie and tracking choices</h2>
+        <p id="cookie-notice-description">
+          Essential first-party cookies keep sign-in, Google sign-in, and secure
+          private links working. With your permission, we also use first-party
+          usage measurement: a random browser ID and basic page visits, app
+          opens, and partner-feature views or clicks for business insights. We
+          do not use third-party analytics pixels or advertising cookies.
+        </p>
+        {detailsOpen && (
+          <ul className="cookie-notice-details">
+            <li>
+              <strong>Always on:</strong> sign-in and secure-delivery cookies;
+              short-lived Google sign-in cookies when you choose Google login;
+              and local preferences such as partner-card layout.
+            </li>
+            <li>
+              <strong>Optional:</strong> the <code>promote.device.v1</code>{" "}
+              browser-storage ID and first-party page/app and partner-feature
+              usage events. These are off unless you accept.
+            </li>
+            <li>
+              You can change your choice at any time using Cookie settings in
+              the footer. Rejecting optional tracking does not affect the
+              website or sign-in. Your choice is saved in browser storage.
+            </li>
+          </ul>
+        )}
+        {cookieStorageError && (
+          <p className="cookie-notice-error" role="status">
+            This browser did not save your choice. It applies for this visit;
+            optional tracking stays off until your choice can be saved.
+          </p>
+        )}
+        <button
+          className="cookie-notice-details-toggle"
+          type="button"
+          aria-expanded={detailsOpen}
+          onClick={() => setDetailsOpen((open) => !open)}
+        >
+          {detailsOpen ? "Hide details" : "What do we use?"}
+        </button>
+      </div>
+      <div className="cookie-notice-actions">
+        {cookieSettingsOpen && cookieConsent !== null && (
+          <button
+            className="btn btn-outline"
+            type="button"
+            onClick={closeCookieSettings}
+          >
+            Close
+          </button>
+        )}
+        <button
+          className="btn btn-outline"
+          type="button"
+          onClick={() => chooseCookieConsent("rejected")}
+        >
+          Reject optional
+        </button>
+        <button
+          className="btn btn-dark"
+          type="button"
+          onClick={() => chooseCookieConsent("accepted")}
+        >
+          Accept optional
+        </button>
+      </div>
+    </section>
+  );
+}
 export function Providers({ children }) {
   const [session, setSession] = useState({
     loading: true,
@@ -73,11 +173,43 @@ export function Providers({ children }) {
   const [bootstrap, setBootstrap] = useState(null),
     [toast, setToast] = useState(null),
     [installPrompt, setInstallPrompt] = useState(null),
+    [cookieConsent, setCookieConsent] = useState(() => {
+      try {
+        const saved = localStorage.getItem(cookieConsentKey);
+        return saved === "accepted" || saved === "rejected" ? saved : null;
+      } catch {
+        return null;
+      }
+    }),
+    [cookieSettingsOpen, setCookieSettingsOpen] = useState(false),
+    [cookieStorageError, setCookieStorageError] = useState(false),
     [installed, setInstalled] = useState(
       () =>
         window.matchMedia("(display-mode: standalone)").matches ||
         navigator.standalone === true,
     );
+  const chooseCookieConsent = useCallback((choice) => {
+    if (choice !== "accepted" && choice !== "rejected") return;
+    try {
+      localStorage.setItem(cookieConsentKey, choice);
+      if (choice === "rejected") localStorage.removeItem("promote.device.v1");
+      setCookieStorageError(false);
+      setCookieConsent(choice);
+      setCookieSettingsOpen(false);
+    } catch {
+      setCookieConsent(choice);
+      setCookieStorageError(true);
+      setCookieSettingsOpen(true);
+    }
+  }, []);
+  const openCookieSettings = useCallback(
+    () => setCookieSettingsOpen(true),
+    [],
+  );
+  const closeCookieSettings = useCallback(() => {
+    setCookieSettingsOpen(false);
+    setCookieStorageError(false);
+  }, []);
   useEffect(() => {
     const active = new Set(),
       exclusive = (event) => {
@@ -181,57 +313,75 @@ export function Providers({ children }) {
     };
   }, []);
   return (
-    <SessionContext.Provider
-      value={{ ...session, bootstrap, refresh, refreshBootstrap }}
+    <CookieConsentContext.Provider
+      value={{
+        cookieConsent,
+        cookieSettingsOpen,
+        chooseCookieConsent,
+        openCookieSettings,
+        closeCookieSettings,
+        cookieStorageError,
+      }}
     >
-      <ToastContext.Provider value={notify}>
-        <InstallContext.Provider value={{ installPrompt, installed }}>
-          {children}
-          {waitingWorker && (
-            <div className="app-update-notice" role="status">
-              <span>
-                <strong>A fresh version is ready.</strong>
-                <small>Save your changes before reloading.</small>
-              </span>
-              <button
-                onClick={() => {
-                  updating.current = true;
-                  waitingWorker.postMessage({ type: "SKIP_WAITING" });
-                }}
-              >
-                Reload <ArrowUpRight size={14} />
-              </button>
-              <button
-                onClick={() => setWaitingWorker(null)}
-                aria-label="Dismiss update notice"
-              >
-                <X size={15} />
-              </button>
-            </div>
-          )}
-          {toast && (
-            <div role="status" className={`toast ${toast.type}`}>
-              {toast.type === "error" ? (
-                <AlertCircle size={20} />
-              ) : (
-                <CheckCircle2 size={20} />
-              )}
-              <span>{toast.message}</span>
-              <button
-                aria-label="Dismiss message"
-                onClick={() => setToast(null)}
-              >
-                <X size={16} />
-              </button>
-            </div>
-          )}
-        </InstallContext.Provider>
-      </ToastContext.Provider>
-    </SessionContext.Provider>
+      <SessionContext.Provider
+        value={{ ...session, bootstrap, refresh, refreshBootstrap }}
+      >
+        <ToastContext.Provider value={notify}>
+          <InstallContext.Provider value={{ installPrompt, installed }}>
+            {children}
+            <CookieNotice />
+            {waitingWorker && (
+              <div className="app-update-notice" role="status">
+                <span>
+                  <strong>A fresh version is ready.</strong>
+                  <small>Save your changes before reloading.</small>
+                </span>
+                <button
+                  onClick={() => {
+                    updating.current = true;
+                    waitingWorker.postMessage({ type: "SKIP_WAITING" });
+                  }}
+                >
+                  Reload <ArrowUpRight size={14} />
+                </button>
+                <button
+                  onClick={() => setWaitingWorker(null)}
+                  aria-label="Dismiss update notice"
+                >
+                  <X size={15} />
+                </button>
+              </div>
+            )}
+            {toast && (
+              <div role="status" className={`toast ${toast.type}`}>
+                {toast.type === "error" ? (
+                  <AlertCircle size={20} />
+                ) : (
+                  <CheckCircle2 size={20} />
+                )}
+                <span>{toast.message}</span>
+                <button
+                  aria-label="Dismiss message"
+                  onClick={() => setToast(null)}
+                >
+                  <X size={16} />
+                </button>
+              </div>
+            )}
+          </InstallContext.Provider>
+        </ToastContext.Provider>
+      </SessionContext.Provider>
+    </CookieConsentContext.Provider>
   );
 }
 export const useSession = () => useContext(SessionContext);
 export const useToast = () => useContext(ToastContext);
+export const useCookieConsent = () => {
+  const context = useContext(CookieConsentContext);
+  if (!context)
+    throw new Error("useCookieConsent must be used within Providers.");
+  return context;
+};
 export function useRemote(path) {
   const [state, setState] = useState({
     path: null,
@@ -1142,7 +1292,8 @@ export function PushButton({ business, privateAlerts = false }) {
   );
 }
 export function TenantIdentity({ business }) {
-  const location = useLocation();
+  const location = useLocation(),
+    { cookieConsent } = useCookieConsent();
   useEffect(() => {
     const slug = business?.slug || "platform";
     document.title = business
@@ -1189,7 +1340,7 @@ export function TenantIdentity({ business }) {
     business?.brandVersion,
   ]);
   useEffect(() => {
-    if (!business?.slug) return;
+    if (!business?.slug || cookieConsent !== "accepted") return;
     let device;
     try {
       device = localStorage.getItem("promote.device.v1") || crypto.randomUUID();
@@ -1197,11 +1348,13 @@ export function TenantIdentity({ business }) {
     } catch {
       return;
     }
-    const send = (kind) =>
+    const send = (kind) => {
+      if (!hasAnalyticsConsent()) return;
       api(`/api/public/${business.slug}/metrics`, {
         method: "POST",
         body: { device, kind },
       }).catch(() => {});
+    };
     send("visit");
     if (
       window.matchMedia("(display-mode: standalone)").matches ||
@@ -1211,7 +1364,7 @@ export function TenantIdentity({ business }) {
     const installed = () => send("install");
     window.addEventListener("promote:installed", installed);
     return () => window.removeEventListener("promote:installed", installed);
-  }, [business?.slug]);
+  }, [business?.slug, cookieConsent]);
   useEffect(() => {
     window.scrollTo({ top: 0, behavior: "instant" });
   }, [location.pathname]);

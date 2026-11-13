@@ -75,6 +75,7 @@ import {
   useRemote,
   useLive,
   useAction,
+  useCookieConsent,
   Brand,
   Button,
   Field,
@@ -161,14 +162,35 @@ function PublicNav() {
     </header>
   );
 }
-function Footer() {
+export function SiteFooter() {
+  const { bootstrap } = useSession(),
+    { openCookieSettings } = useCookieConsent();
   return (
-    <footer className="site-footer container">
-      <Brand small />
-      <span>A little more you. A lot more possible.</span>
-      <div>
-        <Link to="/login">Workspace login</Link>
-        <span>© {new Date().getFullYear()} Techverse</span>
+    <footer className="site-footer">
+      <div className="container site-footer-inner">
+        <div className="site-footer-brand">
+          <Brand small />
+          <p>A little more you. A lot more possible.</p>
+        </div>
+        <nav className="site-footer-links" aria-label="Public links">
+          <Link to="/">Home</Link>
+          <Link to="/#how-it-works">How it works</Link>
+          {bootstrap?.directoryEnabled && (
+            <Link to="/discover">Discover talent</Link>
+          )}
+          <Link to="/#built-for-you">Made for you</Link>
+          {bootstrap?.registrationEnabled && (
+            <Link to="/join">Create your space</Link>
+          )}
+          <Link to="/login">Sign in</Link>
+        </nav>
+        <div className="site-footer-bottom">
+          <span>© {new Date().getFullYear()} Techverse Global</span>
+          <span>Made for people building what comes next.</span>
+          <button type="button" onClick={openCookieSettings}>
+            Cookie settings
+          </button>
+        </div>
       </div>
     </footer>
   );
@@ -529,7 +551,6 @@ export function Platform({ discover = false }) {
           </Empty>
         </section>
       )}
-      <Footer />
     </div>
   );
 }
@@ -1915,6 +1936,14 @@ export function LoginPage() {
     navigate = useNavigate(),
     action = useAction();
   const business = params.get("business");
+  const googleAuthEnabled = Boolean(session.bootstrap?.googleAuthEnabled);
+  const googleReturn =
+    params.get("return")?.startsWith("/") &&
+    !params.get("return")?.startsWith("//")
+      ? params.get("return")
+      : business
+        ? `/dashboard/${encodeURIComponent(business)}`
+        : "/workspaces";
   const submit = (e) => {
     e.preventDefault();
     const form = new FormData(e.currentTarget);
@@ -1972,7 +2001,16 @@ export function LoginPage() {
         <span>OR CONTINUE WITH</span>
       </div>
       <div className="oauth-options">
-        <button className="oauth-option" type="button" disabled>
+        <button
+          className="oauth-option"
+          type="button"
+          disabled={!googleAuthEnabled}
+          onClick={() => {
+            const url = new URL("/api/auth/google", window.location.origin);
+            url.searchParams.set("return", googleReturn);
+            window.location.assign(url);
+          }}
+        >
           <span className="oauth-google-mark" aria-hidden="true">
             G
           </span>
@@ -1984,7 +2022,11 @@ export function LoginPage() {
         </button>
       </div>
       <p className="oauth-notice">
-        Google and Apple sign-in are coming soon and are not connected yet.
+        {params.get("oauth") === "cancelled"
+          ? "Google sign-in was cancelled. You can try again."
+          : googleAuthEnabled
+            ? "Apple sign-in is coming soon."
+            : "Google sign-in is not configured yet. Contact your administrator."}
       </p>
       <p className="auth-alt">
         New here? <Link to="/join">Create your space</Link>
