@@ -74,7 +74,6 @@ export function adminRoutes(app, ctx) {
       settings: {
         directoryEnabled: store.setting("directoryEnabled", true),
         billingEnabled: store.setting("billingEnabled", false),
-        publicRegistration: store.setting("publicRegistration", true),
         platformAccounts: store.setting("platformAccounts", []),
         platformName: store.setting("platformName", "Promote"),
       },
@@ -94,6 +93,18 @@ export function adminRoutes(app, ctx) {
       ),
       domain: process.env.BASE_DOMAIN || "localhost",
     });
+  });
+  app.get("/api/admin/workspace-requests", admin, (req, res) => {
+    const requests = store
+      .all(
+        "SELECT a.id,a.created_at,a.detail,u.name,u.email FROM activity a LEFT JOIN users u ON u.id=a.user_id WHERE a.action=? ORDER BY a.created_at DESC LIMIT 100",
+        "workspace.requested",
+      )
+      .map((request) => ({
+        ...request,
+        message: parse(request.detail, {}).message || "",
+      }));
+    res.json({ requests });
   });
   app.get("/api/admin/live", admin, (req, res) => {
     if (store.cloud)
@@ -133,7 +144,6 @@ export function adminRoutes(app, ctx) {
       .object({
         directoryEnabled: z.boolean().optional(),
         billingEnabled: z.boolean().optional(),
-        publicRegistration: z.boolean().optional(),
         platformAccounts: accountsSchema.optional(),
         platformName: z.string().trim().min(2).max(60).optional(),
       })

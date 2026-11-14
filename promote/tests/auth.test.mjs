@@ -161,7 +161,7 @@ test("JWT sessions and Google OAuth enforce verification and PKCE", async () => 
         unsafeReturnFlow.authorization.searchParams.get("state"),
       );
     assert.equal(unsafeReturn.status, 303);
-    assert.equal(unsafeReturn.headers.get("location"), "/workspaces");
+    assert.equal(unsafeReturn.headers.get("location"), "/");
 
     const flow = await startGoogle("/dashboard/mchenry"),
       callback = await finishGoogle(
@@ -169,13 +169,31 @@ test("JWT sessions and Google OAuth enforce verification and PKCE", async () => 
         flow.authorization.searchParams.get("state"),
       );
     assert.equal(callback.status, 303);
-    assert.equal(callback.headers.get("location"), "/dashboard/mchenry");
+    assert.equal(callback.headers.get("location"), "/");
     const googleSession = cookieFrom(callback.headers, "promote_session");
     assert.ok(googleSession);
     const profile = await fetch(`${origin}/api/auth/me`, {
       headers: { Cookie: googleSession },
     });
-    assert.equal((await profile.json()).user.email, "google-user@example.test");
+    const signedInProfile = await profile.json();
+    assert.equal(signedInProfile.user.email, "google-user@example.test");
+    assert.equal(signedInProfile.user.role, "user");
+    assert.deepEqual(signedInProfile.memberships, []);
+    const savedAccount = runtime.store.get(
+      "SELECT id,email,name,role FROM users WHERE email=?",
+      "google-user@example.test",
+    );
+    assert.equal(savedAccount.id, signedInProfile.user.id);
+    assert.equal(savedAccount.email, "google-user@example.test");
+    assert.equal(savedAccount.name, "Google User");
+    assert.equal(savedAccount.role, "user");
+    assert.equal(
+      runtime.store.get(
+        "SELECT COUNT(*) AS count FROM memberships WHERE user_id=?",
+        signedInProfile.user.id,
+      ).count,
+      0,
+    );
 
     rejectAudience = true;
     const invalidIdentityFlow = await startGoogle(),

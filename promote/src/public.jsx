@@ -54,7 +54,6 @@ import {
 } from "lucide-react";
 import { themeStyle } from "../shared/theme.mjs";
 import { SponsorExperience } from "./sponsors";
-import { MainProfessionField } from "./branding";
 import { PortfolioGallery } from "./gallery";
 import { ProfessionalSections, TourInformation } from "./professional-public";
 import {
@@ -65,7 +64,6 @@ import {
 import {
   buildSiteFlow,
   sitePresentation,
-  withMainProfession,
 } from "../shared/site-flow.mjs";
 import {
   api,
@@ -106,9 +104,47 @@ export const icons = {
   Video,
   Sparkles,
 };
+const accountAvatarColors = [
+  "#c5f36b",
+  "#9ed8c8",
+  "#f4c27a",
+  "#d5b5f5",
+  "#f29e9e",
+  "#9fc4f2",
+  "#e9c5a5",
+];
+const accountAvatarColor = (id) => {
+  let hash = 0;
+  for (const character of id || "public-account")
+    hash = (hash * 31 + character.charCodeAt(0)) >>> 0;
+  return accountAvatarColors[hash % accountAvatarColors.length];
+};
+function PublicAccountIdentity({ user }) {
+  return (
+    <div className="public-account" aria-label="Signed-in account">
+      <span
+        className="public-account-avatar"
+        style={{ backgroundColor: accountAvatarColor(user.id) }}
+        aria-hidden="true"
+      >
+        {initials(user.name)}
+      </span>
+      <span className="public-account-name">{user.name}</span>
+    </div>
+  );
+}
 function PublicNav() {
   const session = useSession(),
     [menu, setMenu] = useState(false);
+  const publicAccount =
+    session.user &&
+    session.user.role !== "admin" &&
+    !session.memberships.length;
+  const workspaceRequestPath = !session.user
+    ? "/login?return=%2Fworkspaces"
+    : session.user.role === "admin"
+      ? "/admin/businesses?create=1"
+      : "/workspaces";
   return (
     <header className="site-header">
       <div className="container header-inner">
@@ -127,7 +163,18 @@ function PublicNav() {
           </a>
         </nav>
         <div className="header-actions">
-          {session.user ? (
+          {publicAccount ? (
+            <>
+              <PublicAccountIdentity user={session.user} />
+              <Link
+                className="btn btn-dark"
+                to={workspaceRequestPath}
+                onClick={() => setMenu(false)}
+              >
+                Request a workspace <ArrowUpRight size={15} />
+              </Link>
+            </>
+          ) : session.user ? (
             <Link
               className="btn btn-dark"
               to={session.user.role === "admin" ? "/admin" : "/workspaces"}
@@ -144,8 +191,12 @@ function PublicNav() {
                   ? "Set up Techverse"
                   : "Sign in"}
               </Link>
-              <Link className="btn btn-dark" to="/join">
-                Create your space <ArrowUpRight size={16} />
+              <Link
+                className="btn btn-dark"
+                to={workspaceRequestPath}
+                onClick={() => setMenu(false)}
+              >
+                Request a workspace <ArrowUpRight size={16} />
               </Link>
             </>
           )}
@@ -178,9 +229,6 @@ export function SiteFooter() {
             <Link to="/discover">Discover talent</Link>
           )}
           <Link to="/#built-for-you">Made for you</Link>
-          {bootstrap?.registrationEnabled && (
-            <Link to="/join">Create your space</Link>
-          )}
           <Link to="/login">Sign in</Link>
         </nav>
         <div className="site-footer-bottom">
@@ -196,7 +244,13 @@ export function SiteFooter() {
 }
 export function Platform({ discover = false }) {
   const { data, error, loading } = useRemote("/api/directory"),
-    { bootstrap } = useSession();
+    session = useSession(),
+    { bootstrap } = session;
+  const workspaceRequestPath = !session.user
+    ? "/login?return=%2Fworkspaces"
+    : session.user.role === "admin"
+      ? "/admin/businesses?create=1"
+      : "/workspaces";
   const [query, setQuery] = useState(""),
     [category, setCategory] = useState("all");
   const businesses = (data?.businesses || []).filter(
@@ -231,8 +285,11 @@ export function Platform({ discover = false }) {
                 bookings, events and app. All yours.
               </p>
               <div className="hero-buttons">
-                <Link to="/join" className="btn btn-dark btn-lg">
-                  Create your space <ArrowUpRight size={19} />
+                <Link
+                  to={workspaceRequestPath}
+                  className="btn btn-dark btn-lg"
+                >
+                  Request a workspace <ArrowUpRight size={19} />
                 </Link>
                 <a href="#discover" className="btn btn-outline btn-lg">
                   Meet the talent <ArrowRight size={18} />
@@ -444,8 +501,8 @@ export function Platform({ discover = false }) {
                   <br />
                   the platform.
                 </h3>
-                <Link to="/join" className="btn btn-dark">
-                  Let’s get you started <ArrowUpRight size={17} />
+                <Link to={workspaceRequestPath} className="btn btn-dark">
+                  Request a workspace <ArrowUpRight size={17} />
                 </Link>
                 <small>Your name. Your look. Your people.</small>
               </div>
@@ -516,8 +573,8 @@ export function Platform({ discover = false }) {
                 <br />
                 <span>Give them your place.</span>
               </h2>
-              <Link to="/join" className="btn btn-dark btn-lg">
-                Build your space <ArrowUpRight size={19} />
+              <Link to={workspaceRequestPath} className="btn btn-dark btn-lg">
+                Request a workspace <ArrowUpRight size={19} />
               </Link>
             </div>
             <div className="profession-cloud">
@@ -586,7 +643,10 @@ function useBusiness(slugOverride) {
 }
 function ArtistHeader({ business, flow }) {
   const [menu, setMenu] = useState(false),
-    { user, bootstrap } = useSession(),
+    { user, memberships, bootstrap } = useSession(),
+    canManageBusiness =
+      user?.role === "admin" ||
+      memberships.some((membership) => membership.slug === business.slug),
     links = flow
       ? flow.navigation
       : [
@@ -635,17 +695,21 @@ function ArtistHeader({ business, flow }) {
         </nav>
         <div className="header-actions">
           <InstallButton business={business} compact />
-          <Link
-            className="artist-login"
-            to={
-              user
-                ? `/dashboard/${business.slug}`
-                : `/login?business=${business.slug}`
-            }
-            aria-label="Open business workspace"
-          >
-            <LayoutDashboard size={19} />
-          </Link>
+          {user && !canManageBusiness ? (
+            <PublicAccountIdentity user={user} />
+          ) : (
+            <Link
+              className="artist-login"
+              to={
+                user
+                  ? `/dashboard/${business.slug}`
+                  : `/login?business=${business.slug}`
+              }
+              aria-label="Open business workspace"
+            >
+              <LayoutDashboard size={19} />
+            </Link>
+          )}
           <button
             type="button"
             className="icon-btn mobile-menu"
@@ -857,14 +921,11 @@ export function Profile({ slugOverride }) {
       return;
     }
     const frame = requestAnimationFrame(() =>
-      document
-        .getElementById(id)
-        ?.scrollIntoView({
-          behavior: window.matchMedia("(prefers-reduced-motion: reduce)")
-            .matches
-            ? "auto"
-            : "smooth",
-        }),
+      document.getElementById(id)?.scrollIntoView({
+        behavior: window.matchMedia("(prefers-reduced-motion: reduce)").matches
+          ? "auto"
+          : "smooth",
+      }),
     );
     return () => cancelAnimationFrame(frame);
   }, [hash, !!data, slug]);
@@ -1952,16 +2013,18 @@ export function LoginPage() {
         method: "POST",
         body: { email: form.get("email"), password: form.get("password") },
       });
-      await session.refresh();
+      const currentSession = await session.refresh();
       const target = params.get("return");
       navigate(
         target?.startsWith("/") && !target.startsWith("//")
           ? target
-          : business
-            ? `/dashboard/${business}`
-            : r.user.role === "admin"
-              ? "/admin"
-              : "/workspaces",
+          : r.user.role !== "admin" && !currentSession.memberships.length
+            ? "/"
+            : business
+              ? `/dashboard/${business}`
+              : r.user.role === "admin"
+                ? "/admin"
+                : "/workspaces",
       );
     });
   };
@@ -2035,9 +2098,7 @@ export function LoginPage() {
           {googleError}
         </p>
       )}
-      <p className="auth-alt">
-        New here? <Link to="/join">Create your space</Link>
-      </p>
+
       {session.bootstrap?.setupRequired && (
         <div className="info-banner">
           First time running Techverse?{" "}
@@ -2118,157 +2179,6 @@ export function SetupPage() {
     </AuthShell>
   );
 }
-export function JoinPage() {
-  const session = useSession(),
-    action = useAction(),
-    navigate = useNavigate(),
-    [businessName, setBusinessName] = useState(""),
-    [slug, setSlug] = useState(""),
-    [edited, setEdited] = useState(false),
-    [selected, setSelected] = useState(["mc"]);
-  const submit = (e) => {
-    e.preventDefault();
-    const form = new FormData(e.currentTarget);
-    action.run(async () => {
-      const r = await api("/api/register", {
-        method: "POST",
-        body: {
-          name: form.get("name"),
-          email: form.get("email"),
-          password: form.get("password"),
-          businessName,
-          slug,
-          professions: selected,
-        },
-      });
-      await session.refresh();
-      navigate(`/dashboard/${r.business.slug}/profile`);
-    });
-  };
-  return (
-    <AuthShell
-      title="Your name. Your space."
-      subtitle="Set up your business and make it your own."
-    >
-      {session.bootstrap?.setupRequired ? (
-        <div className="info-banner">
-          Techverse needs to finish initial setup before registrations open.{" "}
-          <Link to="/setup">Set up Techverse</Link>
-        </div>
-      ) : (
-        <form onSubmit={submit}>
-          <div className="form-grid">
-            <Field label="Your name">
-              <input name="name" required minLength={2} />
-            </Field>
-            <Field label="Business / stage name">
-              <input
-                value={businessName}
-                onChange={(e) => {
-                  setBusinessName(e.target.value);
-                  if (!edited)
-                    setSlug(
-                      e.target.value
-                        .toLowerCase()
-                        .replace(/[^a-z0-9]+/g, "-")
-                        .replace(/^-|-$/g, "")
-                        .slice(0, 36),
-                    );
-                }}
-                required
-                minLength={2}
-              />
-            </Field>
-          </div>
-          <Field
-            label="Your website name"
-            hint={
-              session.bootstrap?.tenantRouting === "path"
-                ? "Your website gets its own address. Custom domains can be connected separately."
-                : "Your own subdomain is assigned when your account is created. Custom domains can be connected separately."
-            }
-          >
-            <div className="input-affix">
-              {session.bootstrap?.tenantRouting === "path" && <span>/p/</span>}
-              <input
-                value={slug}
-                onChange={(e) => {
-                  setEdited(true);
-                  setSlug(e.target.value.toLowerCase());
-                }}
-                required
-                pattern="[a-z][a-z0-9-]{2,35}"
-              />
-              {session.bootstrap?.tenantRouting !== "path" && (
-                <span>.{session.bootstrap?.baseDomain || "localhost"}</span>
-              )}
-            </div>
-          </Field>
-          <Field label="What do you do? Choose all that fit.">
-            <span className="profession-options">
-              {session.bootstrap?.professions.map((p) => (
-                <label key={p.id}>
-                  <input
-                    type="checkbox"
-                    checked={selected.includes(p.id)}
-                    onChange={(e) =>
-                      setSelected(
-                        e.target.checked
-                          ? [...selected, p.id]
-                          : selected.filter((id) => id !== p.id),
-                      )
-                    }
-                  />
-                  {p.name}
-                </label>
-              ))}
-            </span>
-          </Field>
-          <MainProfessionField
-            professions={selected}
-            catalogue={session.bootstrap?.professions}
-            onChange={(id) =>
-              setSelected((previous) => withMainProfession(previous, id))
-            }
-          />
-          <Field label="Email address">
-            <input name="email" type="email" required autoComplete="username" />
-          </Field>
-          <Field label="Create a password" hint="At least 10 characters.">
-            <input
-              name="password"
-              type="password"
-              required
-              minLength={10}
-              autoComplete="new-password"
-            />
-          </Field>
-          {action.error && (
-            <p className="form-error" role="alert">
-              {action.error}
-            </p>
-          )}
-          <Button
-            busy={action.busy}
-            type="submit"
-            variant="dark"
-            className="full"
-            disabled={!selected.length}
-          >
-            Create my space <ArrowUpRight size={18} />
-          </Button>
-          <p className="small muted">
-            Your profile starts as a draft. Add your details and publish when
-            you’re ready.
-          </p>
-        </form>
-      )}
-      <p className="auth-alt">
-        Already have a space? <Link to="/login">Sign in</Link>
-      </p>
-    </AuthShell>
-  );
-}
 export function InvitePage() {
   const { token } = useParams(),
     remote = useRemote(`/api/invitations/${token}`),
@@ -2338,9 +2248,23 @@ export function InvitePage() {
   );
 }
 export function WorkspacePicker() {
-  const session = useSession();
+  const session = useSession(),
+    action = useAction(),
+    [submitted, setSubmitted] = useState(false);
   if (session.loading) return <Loading />;
-  if (!session.user) return <Navigate to="/login" replace />;
+  if (!session.user)
+    return <Navigate to="/login?return=%2Fworkspaces" replace />;
+  const submitRequest = (event) => {
+    event.preventDefault();
+    const message = new FormData(event.currentTarget).get("message");
+    action.run(async () => {
+      await api("/api/workspace-requests", {
+        method: "POST",
+        body: { message },
+      });
+      setSubmitted(true);
+    }, "Your message was sent to Techverse");
+  };
   return (
     <div className="workspace-picker container">
       <Brand />
@@ -2374,8 +2298,46 @@ export function WorkspacePicker() {
       </div>
       {!session.memberships.length && session.user.role !== "admin" && (
         <Empty title="No workspace access yet">
-          Ask the business owner for an invitation, or create your own space.
+          Ask the business owner for an invitation, or continue exploring the
+          public directory.
         </Empty>
+      )}
+      {session.user.role !== "admin" && (
+        <section className="panel workspace-request-panel">
+          <h2>Need a workspace?</h2>
+          <p>
+            Send a message to the Techverse team about the workspace you need.
+          </p>
+          {submitted ? (
+            <p className="info-banner" role="status">
+              Your message has been sent. The Techverse team can follow up at{" "}
+              <strong>{session.user.email}</strong>.
+            </p>
+          ) : (
+            <form onSubmit={submitRequest}>
+              <Field
+                label="Tell us what you need"
+                hint="Include the type of workspace you want and any useful details."
+              >
+                <textarea
+                  name="message"
+                  rows={5}
+                  required
+                  minLength={10}
+                  maxLength={2000}
+                />
+              </Field>
+              {action.error && (
+                <p className="form-error" role="alert">
+                  {action.error}
+                </p>
+              )}
+              <Button type="submit" busy={action.busy}>
+                Send request <ArrowUpRight size={17} />
+              </Button>
+            </form>
+          )}
+        </section>
       )}
     </div>
   );

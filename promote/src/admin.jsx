@@ -72,6 +72,7 @@ import { PaymentReview } from "./dashboard";
 const nav = [
   ["overview", "Platform overview", LayoutDashboard],
   ["businesses", "Businesses & access", Users],
+  ["requests", "Workspace requests", Mail],
   ["billing", "Billing & invoices", Wallet],
   ["plans", "Feature plans", Layers3],
   ["domains", "Domains", Globe2],
@@ -128,6 +129,13 @@ export default function Admin() {
               <span>{label}</span>
             </NavLink>
           ))}
+          <Link
+            to="/admin/businesses?create=1"
+            onClick={() => setMobile(false)}
+          >
+            <Plus size={19} />
+            <span>Create workspace</span>
+          </Link>
         </nav>
         <div className="sidebar-bottom">
           <div className="admin-sidebar-note">
@@ -201,6 +209,8 @@ export default function Admin() {
             <AdminOverview data={remote.data} />
           ) : tab === "businesses" ? (
             <Businesses data={remote.data} refresh={remote.refresh} />
+          ) : tab === "requests" ? (
+            <WorkspaceRequests />
           ) : tab === "billing" ? (
             <AdminBilling data={remote.data} refresh={remote.refresh} />
           ) : tab === "plans" ? (
@@ -1348,7 +1358,6 @@ function PlatformSettings({ data: d, refresh }) {
         body: {
           platformName: s.platformName,
           directoryEnabled: s.directoryEnabled,
-          publicRegistration: s.publicRegistration,
         },
       });
       await Promise.all([refresh(), session.refreshBootstrap()]);
@@ -1359,7 +1368,7 @@ function PlatformSettings({ data: d, refresh }) {
       <PageHeading
         eyebrow="SET THE STAGE"
         title="Platform settings"
-        description="Decide how people discover and join the platform."
+        description="Manage public discovery and your platform settings."
       />
       <form className="panel narrow-panel" onSubmit={submit}>
         <Field label="Product name">
@@ -1389,26 +1398,6 @@ function PlatformSettings({ data: d, refresh }) {
             />
             <span className="switch" />
             <span className="sr-only">Enable public directory</span>
-          </label>
-        </div>
-        <div className="settings-toggle">
-          <div>
-            <h3>Self-service registration</h3>
-            <p>
-              Let people create their own business accounts. You can still
-              create accounts and invite owners while this is disabled.
-            </p>
-          </div>
-          <label className="switch-label">
-            <input
-              type="checkbox"
-              checked={s.publicRegistration}
-              onChange={(e) =>
-                setS({ ...s, publicRegistration: e.target.checked })
-              }
-            />
-            <span className="switch" />
-            <span className="sr-only">Enable self-service registration</span>
           </label>
         </div>
         <div className="form-divider" />
@@ -1665,6 +1654,42 @@ function ActivityPanel({ data: d }) {
       <div className="panel">
         <h2>Audit history</h2>
         <ActivityRows rows={d.activity} />
+      </div>
+    </>
+  );
+}
+function WorkspaceRequests() {
+  const remote = useRemote("/api/admin/workspace-requests");
+  if (remote.loading) return <Loading />;
+  if (remote.error)
+    return <ErrorState error={remote.error} retry={remote.refresh} />;
+  return (
+    <>
+      <PageHeading
+        eyebrow="MESSAGES FROM THE COMMUNITY"
+        title="Workspace requests"
+        description="Read and follow up on messages from people requesting workspace access."
+      />
+      <div className="workspace-request-list">
+        {remote.data.requests.map((request) => (
+          <article className="panel workspace-request-item" key={request.id}>
+            <div className="row-between">
+              <div>
+                <h2>{request.name || "Account unavailable"}</h2>
+                {request.email && (
+                  <a href={`mailto:${request.email}`}>{request.email}</a>
+                )}
+              </div>
+              <small>{datetime(request.created_at)}</small>
+            </div>
+            <p>{request.message}</p>
+          </article>
+        ))}
+        {!remote.data.requests.length && (
+          <Empty title="No workspace requests yet">
+            New messages from signed-in users will appear here.
+          </Empty>
+        )}
       </div>
     </>
   );

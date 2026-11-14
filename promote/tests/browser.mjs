@@ -3,6 +3,7 @@ import assert from "node:assert/strict";
 import { mkdtempSync, mkdirSync, writeFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { createApp } from "../server/index.mjs";
+import { createUser } from "../server/core.mjs";
 
 mkdirSync(".data/tests", { recursive: true });
 mkdirSync("test-results", { recursive: true });
@@ -65,6 +66,15 @@ try {
   await page.getByRole("heading", { name: "Good to have you back." }).waitFor();
   assert.equal(new URL(page.url()).pathname, "/login");
   check("Unauthenticated direct workspace URLs require sign-in");
+  await page.goto(origin);
+  await page.getByRole("heading", { name: /Your talent/ }).waitFor();
+  await page
+    .getByRole("link", { name: "Request a workspace" })
+    .first()
+    .click();
+  await page.getByRole("heading", { name: "Good to have you back." }).waitFor();
+  assert.equal(new URL(page.url()).searchParams.get("return"), "/workspaces");
+  check("Signed-out workspace requests require sign-in and return to the request page");
   await page.goto(origin);
   await page.getByRole("heading", { name: /Your talent/ }).waitFor();
   await noOverflow();
@@ -147,27 +157,46 @@ try {
       professions: ["mc"],
     }),
   });
-  assert.equal(outsiderResponse.status, 201, await outsiderResponse.text());
+  assert.equal(outsiderResponse.status, 403, await outsiderResponse.text());
+  await page.getByRole("link", { name: "Create workspace" }).click();
+  await page
+    .getByRole("heading", { name: "Businesses & access", exact: true })
+    .waitFor();
+  await page
+    .getByLabel("Business / stage name")
+    .fill("Browser Outsider");
+  await page.getByLabel("Website name").fill("browser-outsider");
+  await page.getByLabel("Owner’s email").fill("browser-outsider@test.example");
+  await page
+    .getByRole("button", { name: "Create space & owner invitation" })
+    .click();
+  await page.getByRole("heading", { name: "Owner invitation ready" }).waitFor();
+  const invitationUrl = await page.getByRole("dialog").locator("code").innerText();
   outsiderContext = await browser.newContext();
   const outsiderPage = await outsiderContext.newPage();
   outsiderPage.on("pageerror", (error) => errors.push(error.message));
-  await outsiderPage.goto(origin + "/login?return=%2Fadmin%2Fsettings");
+  await outsiderPage.goto(invitationUrl);
   await outsiderPage
-    .getByLabel("Email address")
-    .fill("browser-outsider@test.example");
+    .getByLabel("Your name", { exact: true })
+    .fill("Browser Outsider");
   await outsiderPage
-    .getByLabel("Password")
+    .getByLabel("Create your password")
     .fill("Browser-outsider-strong-2026");
-  await outsiderPage.getByRole("button", { name: "Open my workspace" }).click();
-  await outsiderPage.getByRole("heading", { name: /Where are we/ }).waitFor();
+  await outsiderPage.getByRole("button", { name: "Join the workspace" }).click();
+  await outsiderPage
+    .getByRole("heading", { name: /Browser Outsider/ })
+    .waitFor();
   await outsiderPage.goto(origin + "/admin/settings");
+  await outsiderPage.getByRole("heading", { name: /Where are we/ }).waitFor();
+  assert.equal(new URL(outsiderPage.url()).pathname, "/workspaces");
+  await outsiderPage.goto(origin + "/join");
   await outsiderPage.getByRole("heading", { name: /Where are we/ }).waitFor();
   assert.equal(new URL(outsiderPage.url()).pathname, "/workspaces");
   await outsiderPage.goto(origin + "/dashboard/mchenry/events");
   await outsiderPage.getByRole("heading", { name: /Where are we/ }).waitFor();
   assert.equal(new URL(outsiderPage.url()).pathname, "/workspaces");
   check(
-    "Signed-in users cannot open another business or administrator workspace by URL",
+    "Workspace requests are stored for the admin inbox; only administrators create workspaces",
   );
   await outsiderContext.close();
   outsiderContext = null;
@@ -322,6 +351,98 @@ try {
   });
   assert.equal(runtime.store.get("SELECT COUNT(*) AS n FROM tickets").n, 1);
   check("Guest checkout issues a real QR ticket without a fan account");
+  await createUser(runtime.store, {
+    name: "Public Browser",
+    email: "public-browser@test.example",
+    password: "Public-browser-strong-2026",
+  });
+  await publicPage.goto(origin + "/login");
+  const consent = publicPage.getByRole("dialog", {
+    name: "Your cookie and tracking choices",
+  });
+  if (await consent.isVisible())
+    await consent.getByRole("button", { name: "Reject optional" }).click();
+  await publicPage
+    .getByLabel("Email address")
+    .fill("public-browser@test.example");
+  await publicPage
+    .getByLabel("Password")
+    .fill("Public-browser-strong-2026");
+  await publicPage
+    .getByRole("button", { name: "Open my workspace" })
+    .click();
+  await publicPage.getByRole("heading", { name: /Your talent/ }).waitFor();
+  assert.equal(new URL(publicPage.url()).pathname, "/");
+  await publicPage.getByText("Public Browser", { exact: true }).waitFor();
+  assert.equal(
+    await publicPage.locator(".public-account-avatar").textContent(),
+    "PB",
+  );
+  assert.notEqual(
+    await publicPage.locator(".public-account-avatar").evaluate(
+      (element) => getComputedStyle(element).backgroundColor,
+    ),
+    "rgba(0, 0, 0, 0)",
+  );
+  assert.equal(
+    await publicPage.getByText("My workspace", { exact: true }).count(),
+    0,
+  );
+  assert.ok(
+    runtime.store.get(
+      "SELECT id FROM users WHERE email=? AND role='user'",
+      "public-browser@test.example",
+    ),
+  );
+  assert.equal(
+    runtime.store.get(
+      "SELECT COUNT(*) AS n FROM memberships WHERE user_id=(SELECT id FROM users WHERE email=?)",
+      "public-browser@test.example",
+    ).n,
+    0,
+  );
+  await publicPage
+    .getByRole("banner")
+    .getByRole("link", { name: "Request a workspace" })
+    .click();
+  await publicPage
+    .getByRole("heading", { name: /Where are we/ })
+    .waitFor();
+  await publicPage
+    .getByLabel("Tell us what you need")
+    .fill("I would like a workspace for my photography business.");
+  await publicPage.getByRole("button", { name: "Send request" }).click();
+  await publicPage
+    .getByRole("status")
+    .getByText(/message has been sent/i)
+    .waitFor();
+  await page.goto(origin + "/admin/requests");
+  await page
+    .getByRole("heading", { name: "Workspace requests", exact: true })
+    .waitFor();
+  await page
+    .getByText("I would like a workspace for my photography business.")
+    .waitFor();
+  await page.getByText("public-browser@test.example").waitFor();
+  check("Signed-in public accounts can send workspace requests to the admin inbox");
+  await publicPage.goto(origin + "/p/mchenry");
+  await publicPage.getByRole("heading", { name: /Good energy/ }).waitFor();
+  await publicPage.locator(".artist-header .public-account-avatar").waitFor();
+  assert.equal(
+    await publicPage.locator(".artist-header .public-account-name").textContent(),
+    "Public Browser",
+  );
+  assert.equal(
+    await publicPage.getByRole("link", { name: "Open business workspace" }).count(),
+    0,
+  );
+  assert.ok(
+    await publicPage.evaluate(
+      () => document.documentElement.scrollWidth <= window.innerWidth,
+    ),
+    "Signed-in public header should fit the mobile viewport.",
+  );
+  check("Public account login returns home and shows a colored initials identity");
   await publicContext.close();
   assert.deepEqual(errors, []);
   check("No uncaught browser errors");

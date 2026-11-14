@@ -572,7 +572,6 @@ export function createApp(options = {}) {
         process.env.TENANT_ROUTING === "path" ? "path" : "subdomain",
       requireTenantHost: production && process.env.TENANT_ROUTING !== "path",
       directoryEnabled: store.setting("directoryEnabled", true),
-      registrationEnabled: store.setting("publicRegistration", true),
       googleAuthEnabled,
       tenant: req.tenant
         ? { slug: req.tenant.slug, name: req.tenant.name }
@@ -790,11 +789,6 @@ export function createApp(options = {}) {
     let account = user;
     if (!account) {
       fail(
-        store.setting("publicRegistration", true),
-        403,
-        "Contact Techverse to create a business account.",
-      );
-      fail(
         store.get("SELECT id FROM users WHERE role='admin'"),
         409,
         "Techverse needs to complete initial setup first.",
@@ -823,6 +817,11 @@ export function createApp(options = {}) {
     } catch {
       returnTo = "/workspaces";
     }
+    const membership = store.get(
+      "SELECT id FROM memberships WHERE user_id=? LIMIT 1",
+      account.id,
+    );
+    if (account.role !== "admin" && !membership) returnTo = "/";
     res.redirect(303, returnTo);
   });
   app.post("/api/auth/logout", (req, res) => {

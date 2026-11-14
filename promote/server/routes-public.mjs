@@ -11,9 +11,7 @@ import {
   now,
   json,
   parse,
-  permissions,
   professions,
-  featureNames,
   createUser,
   readTenant,
   sanitizeTenant,
@@ -29,7 +27,6 @@ import {
 import { validateImage } from "./png.mjs";
 import {
   publicStudio,
-  addServiceTemplates,
   moduleFor,
   catalogue,
 } from "./professional-data.mjs";
@@ -42,28 +39,6 @@ export const contactSchema = z.object({
   email: z.email().max(180),
   phone: z.string().trim().min(6).max(40),
 });
-const slugSchema = z
-  .string()
-  .regex(
-    /^[a-z][a-z0-9-]{2,35}$/,
-    "Use 3–36 lowercase letters, numbers or hyphens, starting with a letter.",
-  )
-  .refine(
-    (s) =>
-      ![
-        "admin",
-        "www",
-        "api",
-        "app",
-        "platform",
-        "billing",
-        "mail",
-        "support",
-        "techverse",
-        "promote",
-      ].includes(s),
-    "This name is reserved.",
-  );
 const publicEvent = (row) => {
   const { staffNotes, ...doc } = parse(row.doc);
   return { ...doc, id: row.id, tenant_id: row.tenant_id };
@@ -81,6 +56,19 @@ export function publicRoutes(app, ctx) {
     upload,
     auth,
   } = ctx;
+  app.post("/api/workspace-requests", auth, (req, res) => {
+    limited(req, "workspace_request", 3, 86400000);
+    fail(
+      req.user.role !== "admin",
+      403,
+      "Techverse administrators do not need to request a workspace.",
+    );
+    const { message } = z
+      .object({ message: z.string().trim().min(10).max(2000) })
+      .parse(req.body);
+    store.audit(null, req.user.id, "workspace.requested", { message });
+    res.status(201).json({ ok: true });
+  });
   const guestRow = (req, table, id) => {
     const token = req.get("Authorization")?.replace(/^Bearer /, "") || "";
     const row = store.get(`SELECT * FROM ${table} WHERE id=?`, id);
@@ -193,89 +181,8 @@ export function publicRoutes(app, ctx) {
       timezone: t.timezone || "Africa/Lagos",
     });
   });
-  app.post("/api/register", async (req, res) => {
-    limited(req, "registration", 8);
-    fail(
-      store.setting("publicRegistration", true) && !req.tenant,
-      403,
-      "Contact Techverse to create a business account.",
-    );
-    fail(
-      store.get("SELECT id FROM users WHERE role='admin'"),
-      409,
-      "Techverse needs to complete initial setup first.",
-    );
-    const input = z
-      .object({
-        name: z.string().trim().min(2).max(100),
-        email: z.email().max(180),
-        password: z.string().min(10).max(128),
-        businessName: z.string().trim().min(2).max(80),
-        slug: slugSchema,
-        professions: z
-          .array(
-            z.enum(store.setting("professions", professions).map((p) => p.id)),
-          )
-          .min(1)
-          .max(20),
-      })
-      .parse(req.body);
-    fail(
-      !readTenant(store, input.slug),
-      409,
-      "This business address is already taken. Choose another.",
-    );
-    const user = await createUser(store, input);
-    let business;
-    store.tx(() => {
-      const id = uid("tn_"),
-        { businessName, slug } = input;
-      const doc = {
-        professions: input.professions,
-        tagline: "",
-        headline: professionFor(input.professions[0], catalogue(store)).title,
-        bio: "",
-        location: "",
-        areas: [],
-        accent: "#c5f36b",
-        avatar: "",
-        cover: "",
-        social: {},
-        gallery: [],
-        email: input.email,
-        phone: "",
-        paymentAccounts: [],
-        features: Object.fromEntries(
-          Object.keys(featureNames).map((k) => [k, k !== "customDomain"]),
-        ),
-        timezone: "Africa/Lagos",
-        blocks: [],
-        verified: false,
-      };
-      store.run(
-        "INSERT INTO tenants VALUES(?,?,?,?,?,?)",
-        id,
-        slug,
-        businessName,
-        0,
-        json(doc),
-        now(),
-      );
-      store.run(
-        "INSERT INTO memberships VALUES(?,?,?,?,?,?)",
-        uid("mem_"),
-        id,
-        user.id,
-        "owner",
-        json(permissions),
-        "[]",
-      );
-      store.audit(id, user.id, "business.created");
-      business = readTenant(store, id);
-      addServiceTemplates(store, business);
-    });
-    logIn(req, res, user);
-    res.status(201).json({ user, business });
+  app.post("/api/register", (req, res) => {
+    fail(false, 403, "Only Techverse administrators can create workspaces.");
   });
   app.post("/api/public/:slug/bookings", (req, res) => {
     limited(req, "booking", 20);

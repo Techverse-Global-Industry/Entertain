@@ -255,16 +255,24 @@ test("Profession tools: real content, tours, planning and private client deliver
           ),
         );
         assert.equal(expect(await dash("test-dj")).services.length, 4);
-        expect(
-          await post(other, "/api/register", {
+        const invite = expect(
+          await post(admin, "/api/admin/businesses", {
             name: "Independent DJ",
-            email: "independent@test.example",
-            password: "Independent-test-strong-2026",
-            businessName: "Independent DJ",
+            ownerEmail: "independent@test.example",
             slug: "independent-dj",
             professions: ["dj"],
           }),
           201,
+        );
+        expect(
+          await post(
+            other,
+            `/api/invitations/${invite.invitation.split("/").pop()}/accept`,
+            {
+              name: "Independent DJ",
+              password: "Independent-test-strong-2026",
+            },
+          ),
         );
         assert.equal(
           expect(await other.request("/api/business/independent-dj/dashboard"))
