@@ -56,6 +56,19 @@ export function publicRoutes(app, ctx) {
     upload,
     auth,
   } = ctx;
+  app.post("/api/workspace-requests", auth, (req, res) => {
+    limited(req, "workspace_request", 3, 86400000);
+    fail(
+      req.user.role !== "admin",
+      403,
+      "Techverse administrators do not need to request a workspace.",
+    );
+    const { message } = z
+      .object({ message: z.string().trim().min(10).max(2000) })
+      .parse(req.body);
+    store.audit(null, req.user.id, "workspace.requested", { message });
+    res.status(201).json({ ok: true });
+  });
   const guestRow = (req, table, id) => {
     const token = req.get("Authorization")?.replace(/^Bearer /, "") || "";
     const row = store.get(`SELECT * FROM ${table} WHERE id=?`, id);

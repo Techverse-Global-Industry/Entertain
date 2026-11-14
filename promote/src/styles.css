@@ -2579,6 +2579,31 @@ code {
   top: 32px;
   color: #7a925f;
 }
+.workspace-request-panel {
+  max-width: 680px;
+  margin-top: 32px;
+}
+.workspace-request-panel > h2 {
+  margin-bottom: 8px;
+}
+.workspace-request-panel > p {
+  margin-bottom: 20px;
+}
+.workspace-request-panel .info-banner {
+  margin-top: 18px;
+}
+.workspace-request-list {
+  display: grid;
+  gap: 14px;
+}
+.workspace-request-item h2 {
+  margin: 0 0 5px;
+}
+.workspace-request-item > p {
+  margin: 20px 0 0;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
 .oauth-divider {
   display: flex;
   align-items: center;

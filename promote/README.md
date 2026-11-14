@@ -33,7 +33,7 @@ Optional scripted provisioning reads `ADMIN_EMAIL` and `ADMIN_PASSWORD` from env
 ## Included behaviour
 
 - Ten professions with their own workflows, public work formats and booking packages. A business can combine professions. Techverse can add professions and choose a workflow blueprint in Platform settings. Services have editable inclusions, duration, pricing and relevant booking questions.
-- Workspaces are created by Techverse administrators, who can invite owners to claim them. Profiles start as drafts. Automatic unique business slugs and branded PWA manifests/icons.
+- Workspaces are created by Techverse administrators, who can invite owners to claim them. Signed-in users can send workspace requests to the administrator inbox; signed-out visitors are directed to sign in first. Profiles start as drafts. Automatic unique business slugs and branded PWA manifests/icons.
 - Business branding, image uploads, gallery, social links, contacts and publication controls. Upload a square photo/logo as the app icon for the best home-screen result.
 - A full colour system derives the website’s surfaces, borders, readable text, buttons and workspace colours from the business’s chosen accent. Choose a dark or light website appearance. The branding studio previews changes before saving. App chrome and manifest colours follow the saved theme.
 - Public image uploads show a local preview, are oriented and optimised for web delivery, and can be reused from a business-specific uploads library. Upload buttons support keyboard use. Existing uploaded pictures remain available. Payment screenshots remain in their separate, private storage flow. Portfolio pictures open in a full-image viewer with arrow-key and swipe navigation.

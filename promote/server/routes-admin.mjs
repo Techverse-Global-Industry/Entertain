@@ -94,6 +94,18 @@ export function adminRoutes(app, ctx) {
       domain: process.env.BASE_DOMAIN || "localhost",
     });
   });
+  app.get("/api/admin/workspace-requests", admin, (req, res) => {
+    const requests = store
+      .all(
+        "SELECT a.id,a.created_at,a.detail,u.name,u.email FROM activity a LEFT JOIN users u ON u.id=a.user_id WHERE a.action=? ORDER BY a.created_at DESC LIMIT 100",
+        "workspace.requested",
+      )
+      .map((request) => ({
+        ...request,
+        message: parse(request.detail, {}).message || "",
+      }));
+    res.json({ requests });
+  });
   app.get("/api/admin/live", admin, (req, res) => {
     if (store.cloud)
       return res.json({

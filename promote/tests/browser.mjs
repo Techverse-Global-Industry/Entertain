@@ -68,6 +68,15 @@ try {
   check("Unauthenticated direct workspace URLs require sign-in");
   await page.goto(origin);
   await page.getByRole("heading", { name: /Your talent/ }).waitFor();
+  await page
+    .getByRole("link", { name: "Request a workspace" })
+    .first()
+    .click();
+  await page.getByRole("heading", { name: "Good to have you back." }).waitFor();
+  assert.equal(new URL(page.url()).searchParams.get("return"), "/workspaces");
+  check("Signed-out workspace requests require sign-in and return to the request page");
+  await page.goto(origin);
+  await page.getByRole("heading", { name: /Your talent/ }).waitFor();
   await noOverflow();
   await page.screenshot({
     path: "test-results/platform-desktop.png",
@@ -187,7 +196,7 @@ try {
   await outsiderPage.getByRole("heading", { name: /Where are we/ }).waitFor();
   assert.equal(new URL(outsiderPage.url()).pathname, "/workspaces");
   check(
-    "Only administrators can create workspaces; owners join through private invitations",
+    "Workspace requests are stored for the admin inbox; only administrators create workspaces",
   );
   await outsiderContext.close();
   outsiderContext = null;
@@ -392,6 +401,30 @@ try {
     ).n,
     0,
   );
+  await publicPage
+    .getByRole("banner")
+    .getByRole("link", { name: "Request a workspace" })
+    .click();
+  await publicPage
+    .getByRole("heading", { name: /Where are we/ })
+    .waitFor();
+  await publicPage
+    .getByLabel("Tell us what you need")
+    .fill("I would like a workspace for my photography business.");
+  await publicPage.getByRole("button", { name: "Send request" }).click();
+  await publicPage
+    .getByRole("status")
+    .getByText(/message has been sent/i)
+    .waitFor();
+  await page.goto(origin + "/admin/requests");
+  await page
+    .getByRole("heading", { name: "Workspace requests", exact: true })
+    .waitFor();
+  await page
+    .getByText("I would like a workspace for my photography business.")
+    .waitFor();
+  await page.getByText("public-browser@test.example").waitFor();
+  check("Signed-in public accounts can send workspace requests to the admin inbox");
   await publicPage.goto(origin + "/p/mchenry");
   await publicPage.getByRole("heading", { name: /Good energy/ }).waitFor();
   await publicPage.locator(".artist-header .public-account-avatar").waitFor();

@@ -140,6 +140,11 @@ function PublicNav() {
     session.user &&
     session.user.role !== "admin" &&
     !session.memberships.length;
+  const workspaceRequestPath = !session.user
+    ? "/login?return=%2Fworkspaces"
+    : session.user.role === "admin"
+      ? "/admin/businesses?create=1"
+      : "/workspaces";
   return (
     <header className="site-header">
       <div className="container header-inner">
@@ -159,7 +164,16 @@ function PublicNav() {
         </nav>
         <div className="header-actions">
           {publicAccount ? (
-            <PublicAccountIdentity user={session.user} />
+            <>
+              <PublicAccountIdentity user={session.user} />
+              <Link
+                className="btn btn-dark"
+                to={workspaceRequestPath}
+                onClick={() => setMenu(false)}
+              >
+                Request a workspace <ArrowUpRight size={15} />
+              </Link>
+            </>
           ) : session.user ? (
             <Link
               className="btn btn-dark"
@@ -177,8 +191,12 @@ function PublicNav() {
                   ? "Set up Techverse"
                   : "Sign in"}
               </Link>
-              <Link className="btn btn-dark" to="/discover">
-                Explore the directory <ArrowUpRight size={16} />
+              <Link
+                className="btn btn-dark"
+                to={workspaceRequestPath}
+                onClick={() => setMenu(false)}
+              >
+                Request a workspace <ArrowUpRight size={16} />
               </Link>
             </>
           )}
@@ -226,7 +244,13 @@ export function SiteFooter() {
 }
 export function Platform({ discover = false }) {
   const { data, error, loading } = useRemote("/api/directory"),
-    { bootstrap } = useSession();
+    session = useSession(),
+    { bootstrap } = session;
+  const workspaceRequestPath = !session.user
+    ? "/login?return=%2Fworkspaces"
+    : session.user.role === "admin"
+      ? "/admin/businesses?create=1"
+      : "/workspaces";
   const [query, setQuery] = useState(""),
     [category, setCategory] = useState("all");
   const businesses = (data?.businesses || []).filter(
@@ -261,8 +285,11 @@ export function Platform({ discover = false }) {
                 bookings, events and app. All yours.
               </p>
               <div className="hero-buttons">
-                <Link to="/discover" className="btn btn-dark btn-lg">
-                  Explore the directory <ArrowUpRight size={19} />
+                <Link
+                  to={workspaceRequestPath}
+                  className="btn btn-dark btn-lg"
+                >
+                  Request a workspace <ArrowUpRight size={19} />
                 </Link>
                 <a href="#discover" className="btn btn-outline btn-lg">
                   Meet the talent <ArrowRight size={18} />
@@ -474,8 +501,8 @@ export function Platform({ discover = false }) {
                   <br />
                   the platform.
                 </h3>
-                <Link to="/login" className="btn btn-dark">
-                  Sign in <ArrowUpRight size={17} />
+                <Link to={workspaceRequestPath} className="btn btn-dark">
+                  Request a workspace <ArrowUpRight size={17} />
                 </Link>
                 <small>Your name. Your look. Your people.</small>
               </div>
@@ -546,8 +573,8 @@ export function Platform({ discover = false }) {
                 <br />
                 <span>Give them your place.</span>
               </h2>
-              <Link to="/discover" className="btn btn-dark btn-lg">
-                Explore the directory <ArrowUpRight size={19} />
+              <Link to={workspaceRequestPath} className="btn btn-dark btn-lg">
+                Request a workspace <ArrowUpRight size={19} />
               </Link>
             </div>
             <div className="profession-cloud">
@@ -1989,10 +2016,10 @@ export function LoginPage() {
       const currentSession = await session.refresh();
       const target = params.get("return");
       navigate(
-        r.user.role !== "admin" && !currentSession.memberships.length
-          ? "/"
-          : target?.startsWith("/") && !target.startsWith("//")
-            ? target
+        target?.startsWith("/") && !target.startsWith("//")
+          ? target
+          : r.user.role !== "admin" && !currentSession.memberships.length
+            ? "/"
             : business
               ? `/dashboard/${business}`
               : r.user.role === "admin"
@@ -2221,9 +2248,23 @@ export function InvitePage() {
   );
 }
 export function WorkspacePicker() {
-  const session = useSession();
+  const session = useSession(),
+    action = useAction(),
+    [submitted, setSubmitted] = useState(false);
   if (session.loading) return <Loading />;
-  if (!session.user) return <Navigate to="/login" replace />;
+  if (!session.user)
+    return <Navigate to="/login?return=%2Fworkspaces" replace />;
+  const submitRequest = (event) => {
+    event.preventDefault();
+    const message = new FormData(event.currentTarget).get("message");
+    action.run(async () => {
+      await api("/api/workspace-requests", {
+        method: "POST",
+        body: { message },
+      });
+      setSubmitted(true);
+    }, "Your message was sent to Techverse");
+  };
   return (
     <div className="workspace-picker container">
       <Brand />
@@ -2260,6 +2301,43 @@ export function WorkspacePicker() {
           Ask the business owner for an invitation, or continue exploring the
           public directory.
         </Empty>
+      )}
+      {session.user.role !== "admin" && (
+        <section className="panel workspace-request-panel">
+          <h2>Need a workspace?</h2>
+          <p>
+            Send a message to the Techverse team about the workspace you need.
+          </p>
+          {submitted ? (
+            <p className="info-banner" role="status">
+              Your message has been sent. The Techverse team can follow up at{" "}
+              <strong>{session.user.email}</strong>.
+            </p>
+          ) : (
+            <form onSubmit={submitRequest}>
+              <Field
+                label="Tell us what you need"
+                hint="Include the type of workspace you want and any useful details."
+              >
+                <textarea
+                  name="message"
+                  rows={5}
+                  required
+                  minLength={10}
+                  maxLength={2000}
+                />
+              </Field>
+              {action.error && (
+                <p className="form-error" role="alert">
+                  {action.error}
+                </p>
+              )}
+              <Button type="submit" busy={action.busy}>
+                Send request <ArrowUpRight size={17} />
+              </Button>
+            </form>
+          )}
+        </section>
       )}
     </div>
   );

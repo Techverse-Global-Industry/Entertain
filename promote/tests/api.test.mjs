@@ -123,6 +123,15 @@ test("Promote: complete business, booking, payment, ticket and billing stories",
         );
         assert.equal((await guest.request("/api/admin/overview")).status, 403);
         assert.equal((await admin.request("/api/admin/overview")).status, 200);
+        assert.equal(
+          (
+            await guest.request("/api/workspace-requests", {
+              method: "POST",
+              body: { message: "I would like to request a workspace." },
+            })
+          ).status,
+          401,
+        );
       },
     );
     await t.test(
@@ -169,6 +178,23 @@ test("Promote: complete business, booking, payment, ticket and billing stories",
           },
         });
         assert.equal(r.status, 200, JSON.stringify(r.data));
+        r = await dj.request("/api/workspace-requests", {
+          method: "POST",
+          body: { message: "I need a workspace for my DJ services." },
+        });
+        assert.equal(r.status, 201, JSON.stringify(r.data));
+        r = await admin.request("/api/admin/workspace-requests");
+        assert.equal(r.status, 200);
+        assert.equal(r.data.requests.length, 1);
+        assert.equal(r.data.requests[0].name, "DJ Kulture");
+        assert.equal(
+          r.data.requests[0].message,
+          "I need a workspace for my DJ services.",
+        );
+        assert.equal(
+          (await dj.request("/api/admin/workspace-requests")).status,
+          403,
+        );
         const other = await dj.request("/api/business/mchenry/dashboard");
         assert.equal(other.status, 403);
         assert.equal((await dj.request("/api/admin/overview")).status, 403);
