@@ -590,6 +590,33 @@ code {
   gap: 22px;
   align-items: center;
 }
+.public-account {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  max-width: 230px;
+  min-width: 0;
+  color: #263128;
+  font-size: 12px;
+  font-weight: 600;
+}
+.public-account-avatar {
+  display: grid;
+  flex: 0 0 36px;
+  width: 36px;
+  height: 36px;
+  place-items: center;
+  border: 1px solid #17231d1a;
+  border-radius: 50%;
+  color: #17231d;
+  font-size: 11px;
+  font-weight: 700;
+}
+.public-account-name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
 .mobile-menu {
   display: none;
 }
@@ -5390,6 +5417,17 @@ td .btn {
     font-size: 10px;
     padding: 10px 12px;
     min-height: 36px;
+  }
+  .public-account {
+    max-width: 150px;
+    gap: 7px;
+    font-size: 10px;
+  }
+  .public-account-avatar {
+    flex-basis: 32px;
+    width: 32px;
+    height: 32px;
+    font-size: 10px;
   }
   .site-header .mobile-menu {
     display: flex;

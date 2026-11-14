@@ -3,6 +3,7 @@ import assert from "node:assert/strict";
 import { mkdtempSync, mkdirSync, writeFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { createApp } from "../server/index.mjs";
+import { createUser } from "../server/core.mjs";
 
 mkdirSync(".data/tests", { recursive: true });
 mkdirSync("test-results", { recursive: true });
@@ -322,6 +323,74 @@ try {
   });
   assert.equal(runtime.store.get("SELECT COUNT(*) AS n FROM tickets").n, 1);
   check("Guest checkout issues a real QR ticket without a fan account");
+  await createUser(runtime.store, {
+    name: "Public Browser",
+    email: "public-browser@test.example",
+    password: "Public-browser-strong-2026",
+  });
+  await publicPage.goto(origin + "/login");
+  const consent = publicPage.getByRole("dialog", {
+    name: "Your cookie and tracking choices",
+  });
+  if (await consent.isVisible())
+    await consent.getByRole("button", { name: "Reject optional" }).click();
+  await publicPage
+    .getByLabel("Email address")
+    .fill("public-browser@test.example");
+  await publicPage
+    .getByLabel("Password")
+    .fill("Public-browser-strong-2026");
+  await publicPage
+    .getByRole("button", { name: "Open my workspace" })
+    .click();
+  await publicPage.getByRole("heading", { name: /Your talent/ }).waitFor();
+  assert.equal(new URL(publicPage.url()).pathname, "/");
+  await publicPage.getByText("Public Browser", { exact: true }).waitFor();
+  assert.equal(
+    await publicPage.locator(".public-account-avatar").textContent(),
+    "PB",
+  );
+  assert.notEqual(
+    await publicPage.locator(".public-account-avatar").evaluate(
+      (element) => getComputedStyle(element).backgroundColor,
+    ),
+    "rgba(0, 0, 0, 0)",
+  );
+  assert.equal(
+    await publicPage.getByText("My workspace", { exact: true }).count(),
+    0,
+  );
+  assert.ok(
+    runtime.store.get(
+      "SELECT id FROM users WHERE email=? AND role='user'",
+      "public-browser@test.example",
+    ),
+  );
+  assert.equal(
+    runtime.store.get(
+      "SELECT COUNT(*) AS n FROM memberships WHERE user_id=(SELECT id FROM users WHERE email=?)",
+      "public-browser@test.example",
+    ).n,
+    0,
+  );
+  await publicPage.goto(origin + "/p/mchenry");
+  await publicPage.getByRole("heading", { name: /Good energy/ }).waitFor();
+  await publicPage.locator(".artist-header .public-account-avatar").waitFor();
+  assert.equal(
+    await publicPage.locator(".artist-header .public-account-name").textContent(),
+    "Public Browser",
+  );
+  assert.equal(
+    await publicPage.getByRole("link", { name: "Open business workspace" }).count(),
+    0,
+  );
+  assert.ok(
+    await publicPage.evaluate(
+      () => document.documentElement.scrollWidth <= window.innerWidth,
+    ),
+    "Signed-in public header should fit the mobile viewport.",
+  );
+  check("Public account login returns home and shows a colored initials identity");
   await publicContext.close();
   assert.deepEqual(errors, []);
   check("No uncaught browser errors");

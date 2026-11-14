@@ -823,6 +823,11 @@ export function createApp(options = {}) {
     } catch {
       returnTo = "/workspaces";
     }
+    const membership = store.get(
+      "SELECT id FROM memberships WHERE user_id=? LIMIT 1",
+      account.id,
+    );
+    if (account.role !== "admin" && !membership) returnTo = "/";
     res.redirect(303, returnTo);
   });
   app.post("/api/auth/logout", (req, res) => {

@@ -106,9 +106,42 @@ export const icons = {
   Video,
   Sparkles,
 };
+const accountAvatarColors = [
+  "#c5f36b",
+  "#9ed8c8",
+  "#f4c27a",
+  "#d5b5f5",
+  "#f29e9e",
+  "#9fc4f2",
+  "#e9c5a5",
+];
+const accountAvatarColor = (id) => {
+  let hash = 0;
+  for (const character of id || "public-account")
+    hash = (hash * 31 + character.charCodeAt(0)) >>> 0;
+  return accountAvatarColors[hash % accountAvatarColors.length];
+};
+function PublicAccountIdentity({ user }) {
+  return (
+    <div className="public-account" aria-label="Signed-in account">
+      <span
+        className="public-account-avatar"
+        style={{ backgroundColor: accountAvatarColor(user.id) }}
+        aria-hidden="true"
+      >
+        {initials(user.name)}
+      </span>
+      <span className="public-account-name">{user.name}</span>
+    </div>
+  );
+}
 function PublicNav() {
   const session = useSession(),
     [menu, setMenu] = useState(false);
+  const publicAccount =
+    session.user &&
+    session.user.role !== "admin" &&
+    !session.memberships.length;
   return (
     <header className="site-header">
       <div className="container header-inner">
@@ -127,7 +160,9 @@ function PublicNav() {
           </a>
         </nav>
         <div className="header-actions">
-          {session.user ? (
+          {publicAccount ? (
+            <PublicAccountIdentity user={session.user} />
+          ) : session.user ? (
             <Link
               className="btn btn-dark"
               to={session.user.role === "admin" ? "/admin" : "/workspaces"}
@@ -586,7 +621,10 @@ function useBusiness(slugOverride) {
 }
 function ArtistHeader({ business, flow }) {
   const [menu, setMenu] = useState(false),
-    { user, bootstrap } = useSession(),
+    { user, memberships, bootstrap } = useSession(),
+    canManageBusiness =
+      user?.role === "admin" ||
+      memberships.some((membership) => membership.slug === business.slug),
     links = flow
       ? flow.navigation
       : [
@@ -635,17 +673,21 @@ function ArtistHeader({ business, flow }) {
         </nav>
         <div className="header-actions">
           <InstallButton business={business} compact />
-          <Link
-            className="artist-login"
-            to={
-              user
-                ? `/dashboard/${business.slug}`
-                : `/login?business=${business.slug}`
-            }
-            aria-label="Open business workspace"
-          >
-            <LayoutDashboard size={19} />
-          </Link>
+          {user && !canManageBusiness ? (
+            <PublicAccountIdentity user={user} />
+          ) : (
+            <Link
+              className="artist-login"
+              to={
+                user
+                  ? `/dashboard/${business.slug}`
+                  : `/login?business=${business.slug}`
+              }
+              aria-label="Open business workspace"
+            >
+              <LayoutDashboard size={19} />
+            </Link>
+          )}
           <button
             type="button"
             className="icon-btn mobile-menu"
@@ -1949,16 +1991,18 @@ export function LoginPage() {
         method: "POST",
         body: { email: form.get("email"), password: form.get("password") },
       });
-      await session.refresh();
+      const currentSession = await session.refresh();
       const target = params.get("return");
       navigate(
-        target?.startsWith("/") && !target.startsWith("//")
-          ? target
-          : business
-            ? `/dashboard/${business}`
-            : r.user.role === "admin"
-              ? "/admin"
-              : "/workspaces",
+        r.user.role !== "admin" && !currentSession.memberships.length
+          ? "/"
+          : target?.startsWith("/") && !target.startsWith("//")
+            ? target
+            : business
+              ? `/dashboard/${business}`
+              : r.user.role === "admin"
+                ? "/admin"
+                : "/workspaces",
       );
     });
   };
