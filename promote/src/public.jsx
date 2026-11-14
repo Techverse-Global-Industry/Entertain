@@ -857,14 +857,11 @@ export function Profile({ slugOverride }) {
       return;
     }
     const frame = requestAnimationFrame(() =>
-      document
-        .getElementById(id)
-        ?.scrollIntoView({
-          behavior: window.matchMedia("(prefers-reduced-motion: reduce)")
-            .matches
-            ? "auto"
-            : "smooth",
-        }),
+      document.getElementById(id)?.scrollIntoView({
+        behavior: window.matchMedia("(prefers-reduced-motion: reduce)").matches
+          ? "auto"
+          : "smooth",
+      }),
     );
     return () => cancelAnimationFrame(frame);
   }, [hash, !!data, slug]);
@@ -2035,9 +2032,7 @@ export function LoginPage() {
           {googleError}
         </p>
       )}
-      <p className="auth-alt">
-        New here? <Link to="/join">Create your space</Link>
-      </p>
+
       {session.bootstrap?.setupRequired && (
         <div className="info-banner">
           First time running Techverse?{" "}
