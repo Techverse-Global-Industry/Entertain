@@ -126,9 +126,9 @@ test("Promote: complete business, booking, payment, ticket and billing stories",
       },
     );
     await t.test(
-      "independent business creation and session separation",
+      "only administrators can create workspaces and invite owners",
       async () => {
-        const r = await dj.request("/api/register", {
+        let r = await dj.request("/api/register", {
           method: "POST",
           body: {
             name: "DJ Kulture",
@@ -139,10 +139,53 @@ test("Promote: complete business, booking, payment, ticket and billing stories",
             professions: ["dj", "organiser"],
           },
         });
+        assert.equal(r.status, 403, JSON.stringify(r.data));
+        r = await guest.request("/api/admin/businesses", {
+          method: "POST",
+          body: {
+            name: "Unauthorized Space",
+            ownerEmail: "unauthorized@test.example",
+            slug: "unauthorized",
+            professions: ["dj"],
+          },
+        });
+        assert.equal(r.status, 403, JSON.stringify(r.data));
+        r = await admin.request("/api/admin/businesses", {
+          method: "POST",
+          body: {
+            name: "DJ Kulture",
+            ownerEmail: "dj@test.example",
+            slug: "djkulture",
+            professions: ["dj", "organiser"],
+          },
+        });
         assert.equal(r.status, 201, JSON.stringify(r.data));
+        const token = r.data.invitation.split("/").pop();
+        r = await dj.request(`/api/invitations/${token}/accept`, {
+          method: "POST",
+          body: {
+            name: "DJ Kulture",
+            password: "Test-kulture-strong-2026",
+          },
+        });
+        assert.equal(r.status, 200, JSON.stringify(r.data));
         const other = await dj.request("/api/business/mchenry/dashboard");
         assert.equal(other.status, 403);
         assert.equal((await dj.request("/api/admin/overview")).status, 403);
+        assert.equal(
+          (
+            await dj.request("/api/admin/businesses", {
+              method: "POST",
+              body: {
+                name: "Another Space",
+                ownerEmail: "another@test.example",
+                slug: "another-space",
+                professions: ["dj"],
+              },
+            })
+          ).status,
+          403,
+        );
         const list = await guest.request("/api/directory");
         assert.equal(list.data.businesses.length, 1);
       },

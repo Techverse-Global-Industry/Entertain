@@ -128,6 +128,13 @@ export default function Admin() {
               <span>{label}</span>
             </NavLink>
           ))}
+          <Link
+            to="/admin/businesses?create=1"
+            onClick={() => setMobile(false)}
+          >
+            <Plus size={19} />
+            <span>Create workspace</span>
+          </Link>
         </nav>
         <div className="sidebar-bottom">
           <div className="admin-sidebar-note">
@@ -1348,7 +1355,6 @@ function PlatformSettings({ data: d, refresh }) {
         body: {
           platformName: s.platformName,
           directoryEnabled: s.directoryEnabled,
-          publicRegistration: s.publicRegistration,
         },
       });
       await Promise.all([refresh(), session.refreshBootstrap()]);
@@ -1359,7 +1365,7 @@ function PlatformSettings({ data: d, refresh }) {
       <PageHeading
         eyebrow="SET THE STAGE"
         title="Platform settings"
-        description="Decide how people discover and join the platform."
+        description="Manage public discovery and your platform settings."
       />
       <form className="panel narrow-panel" onSubmit={submit}>
         <Field label="Product name">
@@ -1389,26 +1395,6 @@ function PlatformSettings({ data: d, refresh }) {
             />
             <span className="switch" />
             <span className="sr-only">Enable public directory</span>
-          </label>
-        </div>
-        <div className="settings-toggle">
-          <div>
-            <h3>Self-service registration</h3>
-            <p>
-              Let people create their own business accounts. You can still
-              create accounts and invite owners while this is disabled.
-            </p>
-          </div>
-          <label className="switch-label">
-            <input
-              type="checkbox"
-              checked={s.publicRegistration}
-              onChange={(e) =>
-                setS({ ...s, publicRegistration: e.target.checked })
-              }
-            />
-            <span className="switch" />
-            <span className="sr-only">Enable self-service registration</span>
           </label>
         </div>
         <div className="form-divider" />

@@ -277,7 +277,7 @@ test("Production requests through Netlify preserve login, tenant identity and pr
             professions: ["dj"],
           },
         });
-        assert.equal(other.status, 201);
+        assert.equal(other.status, 403);
         const profile = await request("/api/public/mchenry", {
           headers: { "x-forwarded-host": "mchenry.promote-test.netlify.app" },
         });

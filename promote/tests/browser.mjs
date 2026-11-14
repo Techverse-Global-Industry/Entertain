@@ -148,27 +148,46 @@ try {
       professions: ["mc"],
     }),
   });
-  assert.equal(outsiderResponse.status, 201, await outsiderResponse.text());
+  assert.equal(outsiderResponse.status, 403, await outsiderResponse.text());
+  await page.getByRole("link", { name: "Create workspace" }).click();
+  await page
+    .getByRole("heading", { name: "Businesses & access", exact: true })
+    .waitFor();
+  await page
+    .getByLabel("Business / stage name")
+    .fill("Browser Outsider");
+  await page.getByLabel("Website name").fill("browser-outsider");
+  await page.getByLabel("Owner’s email").fill("browser-outsider@test.example");
+  await page
+    .getByRole("button", { name: "Create space & owner invitation" })
+    .click();
+  await page.getByRole("heading", { name: "Owner invitation ready" }).waitFor();
+  const invitationUrl = await page.getByRole("dialog").locator("code").innerText();
   outsiderContext = await browser.newContext();
   const outsiderPage = await outsiderContext.newPage();
   outsiderPage.on("pageerror", (error) => errors.push(error.message));
-  await outsiderPage.goto(origin + "/login?return=%2Fadmin%2Fsettings");
+  await outsiderPage.goto(invitationUrl);
   await outsiderPage
-    .getByLabel("Email address")
-    .fill("browser-outsider@test.example");
+    .getByLabel("Your name", { exact: true })
+    .fill("Browser Outsider");
   await outsiderPage
-    .getByLabel("Password")
+    .getByLabel("Create your password")
     .fill("Browser-outsider-strong-2026");
-  await outsiderPage.getByRole("button", { name: "Open my workspace" }).click();
-  await outsiderPage.getByRole("heading", { name: /Where are we/ }).waitFor();
+  await outsiderPage.getByRole("button", { name: "Join the workspace" }).click();
+  await outsiderPage
+    .getByRole("heading", { name: /Browser Outsider/ })
+    .waitFor();
   await outsiderPage.goto(origin + "/admin/settings");
+  await outsiderPage.getByRole("heading", { name: /Where are we/ }).waitFor();
+  assert.equal(new URL(outsiderPage.url()).pathname, "/workspaces");
+  await outsiderPage.goto(origin + "/join");
   await outsiderPage.getByRole("heading", { name: /Where are we/ }).waitFor();
   assert.equal(new URL(outsiderPage.url()).pathname, "/workspaces");
   await outsiderPage.goto(origin + "/dashboard/mchenry/events");
   await outsiderPage.getByRole("heading", { name: /Where are we/ }).waitFor();
   assert.equal(new URL(outsiderPage.url()).pathname, "/workspaces");
   check(
-    "Signed-in users cannot open another business or administrator workspace by URL",
+    "Only administrators can create workspaces; owners join through private invitations",
   );
   await outsiderContext.close();
   outsiderContext = null;

@@ -74,7 +74,6 @@ export function adminRoutes(app, ctx) {
       settings: {
         directoryEnabled: store.setting("directoryEnabled", true),
         billingEnabled: store.setting("billingEnabled", false),
-        publicRegistration: store.setting("publicRegistration", true),
         platformAccounts: store.setting("platformAccounts", []),
         platformName: store.setting("platformName", "Promote"),
       },
@@ -133,7 +132,6 @@ export function adminRoutes(app, ctx) {
       .object({
         directoryEnabled: z.boolean().optional(),
         billingEnabled: z.boolean().optional(),
-        publicRegistration: z.boolean().optional(),
         platformAccounts: accountsSchema.optional(),
         platformName: z.string().trim().min(2).max(60).optional(),
       })

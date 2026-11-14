@@ -17,7 +17,6 @@ import {
   EventsPage,
   GuestPage,
   LoginPage,
-  JoinPage,
   InvitePage,
   SetupPage,
   WorkspacePicker,
@@ -107,7 +106,14 @@ function AppRoutes() {
         <Route path="/events/:eventId" element={<EventPage />} />
         <Route path="/manage/:kind/:id" element={<GuestPage />} />
         <Route path="/login" element={<LoginPage />} />
-        <Route path="/join" element={<JoinPage />} />
+        <Route
+          path="/join"
+          element={
+            <ProtectedPage adminOnly>
+              <Navigate to="/admin/businesses?create=1" replace />
+            </ProtectedPage>
+          }
+        />
         <Route path="/setup" element={<SetupPage />} />
         <Route path="/invite/:token" element={<InvitePage />} />
         <Route path="/delivery/:deliveryId" element={<Delivery />} />

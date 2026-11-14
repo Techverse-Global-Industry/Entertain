@@ -572,7 +572,6 @@ export function createApp(options = {}) {
         process.env.TENANT_ROUTING === "path" ? "path" : "subdomain",
       requireTenantHost: production && process.env.TENANT_ROUTING !== "path",
       directoryEnabled: store.setting("directoryEnabled", true),
-      registrationEnabled: store.setting("publicRegistration", true),
       googleAuthEnabled,
       tenant: req.tenant
         ? { slug: req.tenant.slug, name: req.tenant.name }
@@ -789,11 +788,6 @@ export function createApp(options = {}) {
         null;
     let account = user;
     if (!account) {
-      fail(
-        store.setting("publicRegistration", true),
-        403,
-        "Contact Techverse to create a business account.",
-      );
       fail(
         store.get("SELECT id FROM users WHERE role='admin'"),
         409,

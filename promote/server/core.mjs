@@ -424,7 +424,6 @@ export function seedTenant(store) {
   store.setSetting("billingEnabled", false);
   store.setSetting("platformAccounts", []);
   store.setSetting("platformName", "Promote");
-  store.setSetting("publicRegistration", true);
 }
 export function ensureKeys(store) {
   if (!store.setting("vapid")) {
