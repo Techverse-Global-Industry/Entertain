@@ -185,7 +185,7 @@ export function adminRoutes(app, ctx) {
     res.json({ ok: true });
   });
   app.post("/api/admin/businesses", admin, (req, res) => {
-    const input = z
+    const parsedInput = z
       .object({
         name: z.string().trim().min(2).max(80),
         slug: z.string().regex(/^[a-z][a-z0-9-]{2,35}$/),
@@ -198,7 +198,24 @@ export function adminRoutes(app, ctx) {
         ownerEmail: z.email(),
         location: z.string().max(150).default(""),
       })
-      .parse(req.body);
+      .safeParse(req.body);
+    if (!parsedInput.success) {
+      const field = parsedInput.error.issues[0]?.path[0];
+      const messages = {
+        name: "Enter a business name between 2 and 80 characters.",
+        slug: "Enter a website name using 3–36 lowercase letters, numbers or hyphens, starting with a letter.",
+        professions: "Choose at least one valid profession for this workspace.",
+        ownerEmail: "Enter a valid email address for the workspace owner.",
+        location: "Keep the location to 150 characters or fewer.",
+      };
+      fail(
+        false,
+        400,
+        messages[field] ||
+          "Check the workspace details and try again.",
+      );
+    }
+    const input = parsedInput.data;
     fail(
       ![
         "www",
@@ -213,7 +230,7 @@ export function adminRoutes(app, ctx) {
         "promote",
       ].includes(input.slug) && !readTenant(store, input.slug),
       409,
-      "Choose another business address.",
+      "That website name is already in use or reserved. Choose another.",
     );
     const id = uid("tn_");
     let path;
@@ -257,7 +274,13 @@ export function adminRoutes(app, ctx) {
   app.post("/api/admin/businesses/:id/owner-invitation", admin, (req, res) => {
     const t = readTenant(store, req.params.id);
     fail(t, 404, "Business not found.");
-    const email = z.email().parse(req.body.email);
+    const parsedEmail = z.object({ email: z.email() }).safeParse(req.body);
+    fail(
+      parsedEmail.success,
+      400,
+      "Enter a valid email address for the workspace owner.",
+    );
+    const { email } = parsedEmail.data;
     const path = makeInvitation(store, t.id, email, "owner");
     store.audit(t.id, req.user.id, "owner.invited");
     res.status(201).json({ invitation: path });
