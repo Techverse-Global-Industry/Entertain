@@ -1039,6 +1039,10 @@ export function createApp(options = {}) {
   app.use((error, req, res, next) => {
     if (res.headersSent) return next(error);
     res.removeHeader("Content-Type");
+    if (error.type === "entity.parse.failed")
+      return res.status(400).json({
+        error: "We couldn't read those details. Check the form and try again.",
+      });
     if (error instanceof z.ZodError)
       return res.status(400).json({
         error: error.issues
@@ -1058,7 +1062,12 @@ export function createApp(options = {}) {
                   : "Image must be smaller than 8 MB."
             : "Upload one file at a time.",
       });
-    if (!error.status) console.error("[promote]", error.message);
+    if (!error.status)
+      console.error("[promote] API request failed", {
+        method: req.method,
+        path: req.path,
+        error,
+      });
     res.status(error.status || 500).json({
       error: error.status
         ? error.message

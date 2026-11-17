@@ -41,17 +41,26 @@ export async function api(path, options = {}) {
     headers["Content-Type"] = "application/json";
     body = JSON.stringify(body);
   }
-  const response = await fetch(path, {
-    ...options,
-    headers,
-    body,
-    credentials: "same-origin",
-  });
+  let response;
+  try {
+    response = await fetch(path, {
+      ...options,
+      headers,
+      body,
+      credentials: "same-origin",
+    });
+  } catch (error) {
+    console.error("[promote] API request failed", { path, error });
+    throw new Error(
+      "We couldn't reach the server. Check your connection and try again.",
+    );
+  }
   let data;
   try {
     data = await response.json();
-  } catch {
-    throw new Error("The server could not be reached. Please try again.");
+  } catch (error) {
+    console.error("[promote] API response could not be read", { path, error });
+    throw new Error("The server returned an unexpected response. Please try again.");
   }
   if (!response.ok) {
     const error = new Error(data.error || "Request failed.");
@@ -719,7 +728,7 @@ export function useAction() {
   const [busy, setBusy] = useState(false),
     [error, setError] = useState("");
   const toast = useToast();
-  const run = async (fn, message) => {
+  const run = async (fn, message, failureMessage) => {
     setBusy(true);
     setError("");
     try {
@@ -727,8 +736,14 @@ export function useAction() {
       if (message) toast(message);
       return value;
     } catch (e) {
-      setError(e.message);
-      toast(e.message, "error");
+      console.error("[promote] Action failed", e);
+      const friendlyMessage =
+        e?.status >= 400 && e?.status < 500 && e?.data?.error
+          ? e.data.error
+          : failureMessage ||
+            "We couldn't complete that action. Please try again.";
+      setError(friendlyMessage);
+      toast(friendlyMessage, "error");
       return null;
     } finally {
       setBusy(false);

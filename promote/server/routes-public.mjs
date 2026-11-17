@@ -63,9 +63,15 @@ export function publicRoutes(app, ctx) {
       403,
       "Techverse administrators do not need to request a workspace.",
     );
-    const { message } = z
+    const parsedRequest = z
       .object({ message: z.string().trim().min(10).max(2000) })
-      .parse(req.body);
+      .safeParse(req.body);
+    fail(
+      parsedRequest.success,
+      400,
+      "Tell us what kind of workspace you need in 10 to 2,000 characters.",
+    );
+    const { message } = parsedRequest.data;
     store.audit(null, req.user.id, "workspace.requested", { message });
     res.status(201).json({ ok: true });
   });

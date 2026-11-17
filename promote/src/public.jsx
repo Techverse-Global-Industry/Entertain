@@ -2325,6 +2325,7 @@ export function WorkspacePicker() {
                   required
                   minLength={10}
                   maxLength={2000}
+                  onChange={() => action.setError("")}
                 />
               </Field>
               {action.error && (

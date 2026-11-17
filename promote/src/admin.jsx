@@ -46,7 +46,6 @@ import {
   useRemote,
   useLive,
   useAction,
-  useToast,
   Brand,
   Button,
   Field,
@@ -548,7 +547,8 @@ function Businesses({ data: d, refresh }) {
   );
 }
 function InvitationReady({ path }) {
-  const toast = useToast();
+  const action = useAction(),
+    invitationUrl = window.location.origin + path;
   return (
     <div className="modal-body">
       <ShieldCheck size={34} />
@@ -557,18 +557,31 @@ function InvitationReady({ path }) {
         take over their business workspace.
       </p>
       <div className="copy-box">
-        <code>{window.location.origin + path}</code>
+        <code>{invitationUrl}</code>
         <Button
           variant="secondary"
-          onClick={async () => {
-            await navigator.clipboard.writeText(window.location.origin + path);
-            toast("Owner invitation copied");
-          }}
+          busy={action.busy}
+          onClick={() =>
+            action.run(
+              async () => {
+                if (!navigator.clipboard?.writeText)
+                  throw new Error("Clipboard access is unavailable.");
+                await navigator.clipboard.writeText(invitationUrl);
+              },
+              "Owner invitation copied",
+              "We couldn't copy the invitation link. Select and copy the link above.",
+            )
+          }
           icon={<Copy size={16} />}
         >
           Copy
         </Button>
       </div>
+      {action.error && (
+        <p className="form-error" role="alert">
+          {action.error}
+        </p>
+      )}
       <p className="small muted">
         Expires in seven days. No email has been sent automatically.
       </p>
@@ -588,12 +601,20 @@ function CreateBusiness({ onDone }) {
         body: { ...Object.fromEntries(f), professions: roles },
       });
       onDone(r);
-    }, "Business space created");
+    },
+    "Business space created",
+    "We couldn't create this workspace. Check the details and try again.");
   };
   return (
     <form className="modal-body" onSubmit={submit}>
       <Field label="Business / stage name">
-        <input name="name" required minLength={2} maxLength={80} />
+        <input
+          name="name"
+          required
+          minLength={2}
+          maxLength={80}
+          onChange={() => action.setError("")}
+        />
       </Field>
       <Field
         label="Website name"
@@ -604,13 +625,19 @@ function CreateBusiness({ onDone }) {
           required
           pattern="[a-z][a-z0-9-]{2,35}"
           placeholder="djkulture"
+          onChange={() => action.setError("")}
         />
       </Field>
       <Field label="Owner’s email">
-        <input name="ownerEmail" type="email" required />
+        <input
+          name="ownerEmail"
+          type="email"
+          required
+          onChange={() => action.setError("")}
+        />
       </Field>
       <Field label="Location">
-        <input name="location" />
+        <input name="location" onChange={() => action.setError("")} />
       </Field>
       <Field label="Professions">
         <span className="profession-options">
@@ -619,13 +646,14 @@ function CreateBusiness({ onDone }) {
               <input
                 type="checkbox"
                 checked={roles.includes(p.id)}
-                onChange={(e) =>
+                onChange={(e) => {
+                  action.setError("");
                   setRoles(
                     e.target.checked
                       ? [...roles, p.id]
                       : roles.filter((v) => v !== p.id),
-                  )
-                }
+                  );
+                }}
               />
               {p.name}
             </label>
@@ -635,9 +663,10 @@ function CreateBusiness({ onDone }) {
       <MainProfessionField
         professions={roles}
         catalogue={bootstrap?.professions}
-        onChange={(id) =>
-          setRoles((previous) => withMainProfession(previous, id))
-        }
+        onChange={(id) => {
+          action.setError("");
+          setRoles((previous) => withMainProfession(previous, id));
+        }}
       />
       {action.error && <p className="form-error">{action.error}</p>}
       <Button type="submit" busy={action.busy} disabled={!roles.length}>
@@ -736,7 +765,10 @@ function BusinessAccess({ business: b, data: d, onDone, onInvite }) {
           <input
             type="email"
             value={ownerEmail}
-            onChange={(e) => setOwnerEmail(e.target.value)}
+            onChange={(e) => {
+              setOwnerEmail(e.target.value);
+              action.setError("");
+            }}
           />
         </Field>
         <Button
@@ -744,18 +776,27 @@ function BusinessAccess({ business: b, data: d, onDone, onInvite }) {
           busy={action.busy}
           disabled={!ownerEmail}
           onClick={() =>
-            action.run(async () => {
-              const r = await api(
-                `/api/admin/businesses/${b.id}/owner-invitation`,
-                { method: "POST", body: { email: ownerEmail } },
-              );
-              onInvite(r.invitation);
-            })
+            action.run(
+              async () => {
+                const r = await api(
+                  `/api/admin/businesses/${b.id}/owner-invitation`,
+                  { method: "POST", body: { email: ownerEmail } },
+                );
+                onInvite(r.invitation);
+              },
+              undefined,
+              "We couldn't create the invitation. Check the email address and try again.",
+            )
           }
         >
           Create invitation
         </Button>
       </div>
+      {action.error && (
+        <p className="form-error" role="alert">
+          {action.error}
+        </p>
+      )}
     </div>
   );
 }

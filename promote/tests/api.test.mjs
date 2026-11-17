@@ -169,7 +169,42 @@ test("Promote: complete business, booking, payment, ticket and billing stories",
           },
         });
         assert.equal(r.status, 201, JSON.stringify(r.data));
-        const token = r.data.invitation.split("/").pop();
+        const { id: businessId, invitation } = r.data;
+        r = await admin.request("/api/admin/businesses", {
+          method: "POST",
+          body: {
+            name: "Duplicate Space",
+            ownerEmail: "another@test.example",
+            slug: "djkulture",
+            professions: ["dj"],
+          },
+        });
+        assert.equal(r.status, 409);
+        assert.equal(
+          r.data.error,
+          "That website name is already in use or reserved. Choose another.",
+        );
+        r = await admin.request("/api/admin/businesses", {
+          method: "POST",
+          body: {
+            name: "Invalid Space",
+            ownerEmail: "not-an-email",
+            slug: "invalid-space",
+            professions: ["dj"],
+          },
+        });
+        assert.equal(r.status, 400);
+        assert.equal(r.data.error, "Enter a valid email address for the workspace owner.");
+        r = await admin.request(
+          `/api/admin/businesses/${businessId}/owner-invitation`,
+          { method: "POST", body: { email: "not-an-email" } },
+        );
+        assert.equal(r.status, 400);
+        assert.equal(
+          r.data.error,
+          "Enter a valid email address for the workspace owner.",
+        );
+        const token = invitation.split("/").pop();
         r = await dj.request(`/api/invitations/${token}/accept`, {
           method: "POST",
           body: {
